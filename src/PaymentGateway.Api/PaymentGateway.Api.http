@@ -1,0 +1,51 @@
+﻿@PaymentGateway.Api_HostAddress = http://localhost:5180
+@PaymentGateway.Api_HostAddress_DOCKER = http://localhost:8080
+@idempotency_key = 123e4567-e89b-12d3-a456-426614174000
+@paymentId = 6b3e0f47-3bff-43bf-bc34-c9c97c9cc029
+@etag = W/"etag-value"
+
+### Create a payment (POST)
+POST {{PaymentGateway.Api_HostAddress}}/api/v1/payments
+Content-Type: application/json
+Idempotency-Key: {{idempotency_key}}
+
+{
+  "cardNumber": "4111111111111111",
+  "expiryMonth": 12,
+  "expiryYear": 2026,
+  "cvv": "123",
+  "currency": "USD",
+  "amount": 100
+}
+
+###
+
+### Create a payment (POST) - example using Docker-hosted container
+# If you ran the Docker image mapping container port 80 -> host 8080:
+POST {{PaymentGateway.Api_HostAddress_DOCKER}}/api/v1/payments
+Content-Type: application/json
+Idempotency-Key: {{idempotency_key}}
+
+{
+  "cardNumber": "4111111111111112",
+  "expiryMonth": 12,
+  "expiryYear": 2026,
+  "cvv": "123",
+  "currency": "USD",
+  "amount": 50.00
+}
+
+###
+
+### Get a payment (GET by id)
+GET {{PaymentGateway.Api_HostAddress}}/api/v1/payments/{{paymentId}}
+Accept: application/json
+If-None-Match: {{etag}}
+
+###
+
+### Notes
+# - The API exposes a single GET by id: `GET /api/v1/payments/{id}` and a POST to create/process payments.
+# - For idempotent retries include the `Idempotency-Key` header on POST requests.
+# - Use the `If-None-Match` header with the ETag returned by GET to receive `304 Not Modified` when appropriate.
+# - If you use the provided bank simulator, ensure it is running (see `docker-compose.yml` / `docker-compose.ml`) before testing payment processing.
