@@ -3,7 +3,7 @@
 public sealed record GetPaymentResponse
 {
     public Guid Id { get; init; }
-    public PaymentStatus Status { get; init; }
+    public PaymentStatusEnum Status { get; init; }
     public int CardNumberLastFour { get; init; }
     public int ExpiryMonth { get; init; }
     public int ExpiryYear { get; init; }

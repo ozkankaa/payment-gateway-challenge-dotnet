@@ -4,12 +4,15 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
 
-using PaymentGateway.Api.Application.Payments.Dtos;
-using PaymentGateway.Api.Application.Payments.GetPayment;
-using PaymentGateway.Api.Application.Payments.ProcessPayment;
+using PaymentGateway.Api.Application.Features.Payments.Dtos;
+using PaymentGateway.Api.Application.Features.Payments.GetPayment;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment;
+using PaymentGateway.Api.Extensions;
+using PaymentGateway.Api.Infrastructure.Metrics;
+using PaymentGateway.Api.Infrastructure.Services.ETagService;
+using PaymentGateway.Api.Mappers;
 using PaymentGateway.Api.Models.Requests;
 using PaymentGateway.Api.Models.Responses;
-using PaymentGateway.Api.Services;
 
 namespace PaymentGateway.Api.Controllers;
 
@@ -18,49 +21,41 @@ namespace PaymentGateway.Api.Controllers;
 [Route("api/v{version:apiVersion}/payments")]
 [Produces("application/json")]
 [EnableRateLimiting("PaymentsRateLimit")]
-public class PaymentsController(
+public sealed class PaymentsController(
     IOutputCacheStore cache,
     IETagService etagService,
-    ILogger<PaymentsController> logger) : Controller
+    ILogger<PaymentsController> logger) : ControllerBase
 {
-    [HttpGet("{id:guid}", Name = "GetPayment")]
-    [ProducesResponseType(typeof(PostPaymentResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status304NotModified)]
-    [OutputCache(Duration = 60, PolicyName = "payments")]
-    public ActionResult<PostPaymentResponse> GetPayment(
-        [FromRoute] Guid id,
-        [FromServices] GetPaymentHandler handler)
-    {
-        logger.LogInformation("Retrieving payment with id {Id}", id);
+    private const string PaymentsCacheTag = "payments";
 
-        var result = handler.Handle(new GetPaymentQuery(id));
+    [HttpGet("{id:guid}", Name = nameof(GetPayment))]
+    [ProducesResponseType(typeof(PostPaymentResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status304NotModified)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [OutputCache(Duration = 60, PolicyName = PaymentsCacheTag)]
+    public async Task<ActionResult<PostPaymentResponse>> GetPayment(
+        [FromRoute] Guid id,
+        [FromServices] GetPaymentHandler handler, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Retrieving payment {PaymentId}.", id);
+
+        var result = await handler.HandleAsync(new GetPaymentQuery(id), cancellationToken);
+
+        if (result.Outcome == PaymentOperationOutcome.NotFound)
+            return HandleGetPaymentResult(id, result);
 
         var etag = etagService.Generate(result);
 
         if (etagService.Matches(Request, etag))
         {
-            logger.LogInformation("Retrieving payment {PaymentId} not modified.", id);
+            PaymentMetrics.AddPaymentTotal("retrieve", "payment_not_modified");
+            logger.LogInformation("Payment {PaymentId} was not modified.", id);
             return StatusCode(StatusCodes.Status304NotModified);
         }
 
         Response.Headers.ETag = etag;
 
-        switch (result.Outcome)
-        {
-            case PaymentOperationOutcome.Ok:
-                logger.LogInformation("Retrieved payment with id {PaymentId} and outcome {Outcome}.", id, result.Outcome);
-                return Ok(result.Payment);
-            case PaymentOperationOutcome.NotModified:
-                logger.LogInformation("Retrieving payment with id {PaymentId} not modified and outcome {Outcome}.", id, result.Outcome);
-                return StatusCode(StatusCodes.Status304NotModified);
-            case PaymentOperationOutcome.NotFound:
-                logger.LogInformation("Retrieving payment with id {PaymentId} not found and outcome {Outcome}.", id, result.Outcome);
-                return NotFound();
-            default:
-                logger.LogError("Retrieving payment with id {PaymentId} not proced with outcome {Outcome} and returns server error.", id, result.Outcome);
-                return StatusCode(StatusCodes.Status500InternalServerError);
-        }
+        return HandleGetPaymentResult(id, result);
     }
 
     [HttpPost]
@@ -74,55 +69,165 @@ public class PaymentsController(
         [FromServices] ProcessPaymentHandler handler,
         CancellationToken cancellationToken)
     {
-        var idempotencyKey = Request.Headers.TryGetValue("Idempotency-Key", out var value) ? value.ToString() : null;
-        var lastFourCardDigits = request.CardNumber.Length >= 4 ? request.CardNumber[^4..] : request.CardNumber;
+        var idempotencyKey = Request.GetIdempotencyKey();
+        var lastFourDigits = request.CardNumber.LastFourDigits();
 
-        logger.LogInformation("Creating payment with Idempotency-Key {IdempotencyKey} and last four digit card number {LastFourCardDigits}.", idempotencyKey, lastFourCardDigits);
+        logger.LogInformation(
+            "Processing payment for merchant {MerchantId} with idempotency key {IdempotencyKey} and card ending {LastFourDigits}.",
+            request.MerchantId,
+            idempotencyKey,
+            lastFourDigits);
 
-        var command = new ProcessPaymentCommand(
-            CardNumber: request.CardNumber,
-            ExpiryMonth: request.ExpiryMonth,
-            ExpiryYear: request.ExpiryYear,
-            Currency: request.Currency,
-            Amount: request.Amount,
-            Cvv: request.Cvv,
-            IdempotencyKey: idempotencyKey);
+        var command = request.ToCommand(idempotencyKey);
+        var result = await handler.HandleAsync(command, cancellationToken);
 
-        var result = handler.Handle(command);
+        if (IsSuccessfulPayment(result.Outcome))
+            await cache.EvictByTagAsync(PaymentsCacheTag, cancellationToken);
 
-        if (result.Outcome == PaymentOperationOutcome.Created || result.Outcome == PaymentOperationOutcome.Ok)
+        return HandleProcessPaymentResult(result, idempotencyKey, lastFourDigits);
+    }
+
+    private ActionResult<PostPaymentResponse> HandleGetPaymentResult(
+        Guid paymentId,
+        PaymentOperationResultDto result)
+    {
+        return result.Outcome switch
         {
-            logger.LogInformation("Creating payment with Idempotency-Key {IdempotencyKey} and last four digit card number {LastFourCardDigits} processed successfully with payment id {PaymentId} and outcome {Outcome} then refreshing the cache.", idempotencyKey, lastFourCardDigits, result.Payment!.Id, result.Outcome);
-            await cache.EvictByTagAsync("payments", cancellationToken);
-        }
-        var errors = string.Empty;
-        errors = $"{result.Error?.Code}: {result.Error?.Message}{Environment.NewLine}";
-        errors +=
-            (result.Error?.Errors == null
-                ? ""
-                : string.Join(Environment.NewLine, result.Error.Errors.Select(x => $"{x.Key}: {string.Join(", ", x.Value)}")));
+            PaymentOperationOutcome.Ok => WithMetric("retrieve", "payment_retrieved", () =>
+            {
+                logger.LogInformation("Payment {PaymentId} retrieved successfully.", paymentId);
+                return Ok(result.Payment!.ToResponse());
+            }),
 
-        switch (result.Outcome)
-        {
-            case PaymentOperationOutcome.Created:
-                logger.LogInformation("Creating payment with Idempotency-Key {IdempotencyKey} and last four digit card number {LastFourCardDigits} processed successfully with payment id {PaymentId} and outcome {Outcome}.", idempotencyKey, lastFourCardDigits, result.Payment!.Id, result.Outcome);
-                return CreatedAtAction("GetPayment", new { id = result.Payment!.Id }, result.Payment);
-            case PaymentOperationOutcome.Ok:
-                logger.LogInformation("Creating payment with Idempotency-Key {IdempotencyKey} and last four digit card number {LastFourCardDigits} processed successfully with payment id {PaymentId} and outcome {Outcome}.", idempotencyKey, lastFourCardDigits, result.Payment!.Id, result.Outcome);
-                return Ok(result.Payment);
-            case PaymentOperationOutcome.BadRequest:
-                logger.LogInformation("Creating payment with Idempotency-Key {IdempotencyKey} and last four digit card number {LastFourCardDigits} not processed successfully with errors {Errors} and outcome {Outcome}.", idempotencyKey, lastFourCardDigits, errors, result.Outcome);
-                return BadRequest(result.Error);
-            case PaymentOperationOutcome.Conflict:
-                logger.LogInformation("Creating payment with Idempotency-Key {IdempotencyKey} and last four digit card number {LastFourCardDigits} has conflict with error {ErrorMessage} and outcome {Outcome}.", idempotencyKey, lastFourCardDigits, errors, result.Outcome);
-                return Conflict(result.Error);
-            case PaymentOperationOutcome.ServiceUnavailable:
-                logger.LogInformation("Creating payment with Idempotency-Key {IdempotencyKey} and last four digit card number {LastFourCardDigits} has service unavailable problem with errors {ErrorMessage} and outcome {Outcome}.", idempotencyKey, lastFourCardDigits, errors, result.Outcome);
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, result.Error);
-            default:
-                logger.LogError("Creating payment with Idempotency-Key {IdempotencyKey} and last four digit card number {LastFourCardDigits} raising internal error.", idempotencyKey, lastFourCardDigits);
+            PaymentOperationOutcome.NotModified => WithMetric("retrieve", "payment_not_modified", () =>
+            {
+                logger.LogInformation("Payment {PaymentId} was not modified.", paymentId);
+                return StatusCode(StatusCodes.Status304NotModified);
+            }),
+
+            PaymentOperationOutcome.NotFound => WithMetric("retrieve", "payment_not_found", () =>
+            {
+                logger.LogInformation("Payment {PaymentId} was not found.", paymentId);
+                return NotFound();
+            }),
+
+            _ => WithMetric("retrieve", "payment_unknown", () =>
+            {
+                logger.LogError(
+                    "Unexpected outcome {Outcome} while retrieving payment {PaymentId}.",
+                    result.Outcome,
+                    paymentId);
+
                 return StatusCode(StatusCodes.Status500InternalServerError);
-        }
-        ;
+            })
+        };
+    }
+
+    private ActionResult<PostPaymentResponse> HandleProcessPaymentResult(
+        PaymentOperationResultDto result,
+        string? idempotencyKey,
+        string lastFourDigits)
+    {
+        return result.Outcome switch
+        {
+            PaymentOperationOutcome.Created => WithMetric("process", "payment_created", () =>
+            {
+                var response = result.Payment!.ToResponse();
+
+                logger.LogInformation(
+                    "Payment {PaymentId} created successfully with idempotency key {IdempotencyKey} and card ending {LastFourDigits}.",
+                    response.Id,
+                    idempotencyKey,
+                    lastFourDigits);
+
+                return CreatedAtAction(
+                    nameof(GetPayment),
+                    new
+                    {
+                        version = HttpContext.GetRequestedApiVersion()?.ToString(),
+                        id = response.Id
+                    },
+                    response);
+            }),
+
+            PaymentOperationOutcome.Ok => WithMetric("process", "payment_ok", () =>
+            {
+                var response = result.Payment!.ToResponse();
+
+                logger.LogInformation(
+                    "Payment {PaymentId} returned from idempotent request with idempotency key {IdempotencyKey}.",
+                    response.Id,
+                    idempotencyKey);
+
+                return Ok(response);
+            }),
+
+            PaymentOperationOutcome.BadRequest => WithMetric(
+                "process",
+                result.Error?.Code ?? "payment_bad_request",
+                () =>
+                {
+                    LogPaymentFailure(result, idempotencyKey, lastFourDigits);
+                    return BadRequest(result.Error);
+                }),
+
+            PaymentOperationOutcome.Conflict => WithMetric(
+                "process",
+                result.Error?.Code ?? "payment_conflict",
+                () =>
+                {
+                    LogPaymentFailure(result, idempotencyKey, lastFourDigits);
+                    return Conflict(result.Error);
+                }),
+
+            PaymentOperationOutcome.ServiceUnavailable => WithMetric(
+                "process",
+                result.Error?.Code ?? "bank_unavailable",
+                () =>
+                {
+                    LogPaymentFailure(result, idempotencyKey, lastFourDigits);
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, result.Error);
+                }),
+
+            _ => WithMetric("process", result.Error?.Code ?? "payment_unknown", () =>
+            {
+                logger.LogError(
+                    "Unexpected outcome {Outcome} while processing payment with idempotency key {IdempotencyKey}. Error: {ErrorCode} - {ErrorMessage}",
+                    result.Outcome,
+                    idempotencyKey,
+                    result.Error?.Code,
+                    result.Error?.Message);
+
+                return StatusCode(StatusCodes.Status500InternalServerError);
+            })
+        };
+    }
+
+    private static bool IsSuccessfulPayment(PaymentOperationOutcome outcome)
+    {
+        return outcome is PaymentOperationOutcome.Created or PaymentOperationOutcome.Ok;
+    }
+
+    private void LogPaymentFailure(
+        PaymentOperationResultDto result,
+        string? idempotencyKey,
+        string lastFourDigits)
+    {
+        logger.LogInformation(
+            "Payment processing failed with outcome {Outcome}, error code {ErrorCode}, error message {ErrorMessage}, idempotency key {IdempotencyKey}, card ending {LastFourDigits}.",
+            result.Outcome,
+            result.Error?.Code,
+            result.Error?.Message,
+            idempotencyKey,
+            lastFourDigits);
+    }
+
+    private static ActionResult<PostPaymentResponse> WithMetric(
+        string operation,
+        string outcome,
+        Func<ActionResult<PostPaymentResponse>> action)
+    {
+        PaymentMetrics.AddPaymentTotal(operation, outcome);
+        return action();
     }
 }

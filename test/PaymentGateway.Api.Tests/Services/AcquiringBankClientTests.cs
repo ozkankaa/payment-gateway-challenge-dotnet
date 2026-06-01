@@ -1,15 +1,15 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Net.Http.Json;
+
+using Microsoft.Extensions.Logging;
 
 using Moq;
 using Moq.Protected;
 
-using PaymentGateway.Api.Models.Requests;
-using PaymentGateway.Api.Models.Responses;
-using PaymentGateway.Api.Services;
+using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService;
+using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService.Requests;
+using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService.Responses;
 
-using System.Net.Http.Json;
-
-namespace PaymentGateway.Api.Tests.Services;
+namespace PaymentGateway.Api.Tests.Infrastructure.Services;
 
 public class AcquiringBankClientTests
 {

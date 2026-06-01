@@ -1,0 +1,55 @@
+﻿using Microsoft.EntityFrameworkCore;
+
+using PaymentGateway.Api.Infrastructure.Persistence;
+using PaymentGateway.Api.Middleware;
+
+using Serilog;
+
+namespace PaymentGateway.Api.Extensions;
+
+public static class WebApplicationExtensions
+{
+    public static WebApplication UseAppPipeline(this WebApplication app)
+    {
+        app.UseMiddleware<ExceptionHandlingMiddleware>();
+        app.UseMiddleware<SecurityHeadersMiddleware>();
+        app.UseMiddleware<CorrelationIdMiddleware>();
+
+        app.UseSerilogRequestLogging();
+
+        // Configure the HTTP request pipeline.
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseSwagger();
+            app.UseSwaggerUI(options =>
+            {
+                options.SwaggerEndpoint("/swagger/v1/swagger.json", "Payment Gateway API v1");
+                options.RoutePrefix = "swagger";
+            });
+        }
+        else
+        {
+            app.UseExceptionHandler();
+        }
+
+        app.UseHttpsRedirection();
+        app.UseRouting();
+        app.UseCors("Merchants");
+        app.UseRateLimiter();
+        app.UseOutputCache();
+        app.UseAuthorization();
+
+        app.MapHealthChecksEndpoints();
+
+        app.MapControllers();
+
+        using (var scope = app.Services.CreateAsyncScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
+
+            dbContext.Database.MigrateAsync();
+        }
+
+        return app;
+    }
+}

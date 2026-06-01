@@ -1,20 +1,25 @@
-﻿using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
+
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 using PaymentGateway.Api.HealthChecks;
-
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using PaymentGateway.Api.Options;
 
 namespace PaymentGateway.Api.Extensions;
 
 internal static class HealthCheckExtensions
 {
-    public static IServiceCollection AddCustomHealthChecks(this IServiceCollection services)
+    public static IServiceCollection AddCustomHealthChecks(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddHealthChecks()
             .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
-            .AddCheck<AcquiringBankHealthCheck>(name: "acquiring-bank", failureStatus: HealthStatus.Unhealthy, tags: ["ready"]);
+            .AddCheck<AcquiringBankHealthCheck>(name: "acquiring-bank", failureStatus: HealthStatus.Unhealthy, tags: ["external-service", "acquiring-bank", "ready"])
+            .AddCheck<AcquiringBankHealthCheck>(name: "fraud-service", failureStatus: HealthStatus.Unhealthy, tags: ["external-service", "fraud-service", "ready"])
+            .AddCheck<RabbitMqHealthCheck>(name: "rabbitmq", failureStatus: HealthStatus.Unhealthy, tags: ["messaging", "rabbitmq", "ready"])
+            .AddCheck<PaymentDbContextHealthCheck>(name: "payment-db", HealthStatus.Unhealthy, tags: ["database", "payment-db", "ready"]); ;
+
 
         return services;
     }

@@ -1,21 +1,31 @@
-# PaymentGateway.Api
+ï»¿# PaymentGateway.Api
 
 A simple payment gateway API implemented in .NET 8 (C# 12). This project exposes endpoints for creating and retrieving payments with idempotency, ETag support, output caching, and rate limiting.
 
 ## Key features
 
 - Built with .NET 8 and C# 12
-- REST API with versioning (v1.0)
+- Stateless REST API with versioning (v1.0)
 - Endpoints:
-  - `GET /api/v1/payments/{id}` — retrieve a payment
-  - `POST /api/v1/payments` — create/process a payment
+  - `GET /api/v1/payments/{id}` â€” retrieve a payment
+  - `POST /api/v1/payments` â€” create/process a payment
 - Idempotency support via the `Idempotency-Key` header
 - ETag generation and conditional GETs
 - Output caching and cache eviction by tag: `PaymentsCache`
 - Rate limiting policy: `PaymentsRateLimit`
-- Structured logging for better observability
-- Unit tests included to ensure code quality
+- Retry only when the failure may be temporary
+- Circuit breaker : Stops calling a failing dependency temporarily
+- Bulkhead isolation : Limits how many concurrent calls can go to one dependency
+- Structured logging with using Serilog for better observability
+- Unit and integration tests included to ensure code quality
 - Health checks for application liveness and readiness
+- OpenTelemtry implementation for better observability and added custom metrics like success/failure payments
+- SAGA pattern implementation via handling payment
+- CQRS pattern implementation handling business logic in application handlers
+- DDD implementation with aggragated payment domain and handling domain events
+- EDD implementation with using RabbitMQ sending messages to external services
+- Using Sqlite database for storing payments and outbox events via EntityFrameworkCore and UnitOfWork implementation and RowVersioning for concurrency
+- Added Azure/AWS/K8S deployment files for Github Actions
 
 ## Prerequisites
 
@@ -48,11 +58,21 @@ The API will be available at `https://localhost:{port}/api/v1/payments`.
 Configuration settings are located in `appsettings.json` and its environment-specific variants. Important settings include:
 
 - Acquiring bank endpoint URL (for the bank simulator)
+- Fraud service endpoint URL (for the fraud simulator)
+- RabbitMQ settings (for the publish/consume integration messages)
+- Database connection string
 - Logging configuration
 - Rate limiting policy name: `PaymentsRateLimit`
 - Output cache settings and tag-based eviction: `PaymentsCache`
+- OpenTelemtry settings
 
 Feel free to adjust ports, logging levels, and provider settings as needed.
+
+### Running the external dependencies
+
+From the repository root, start the simulator with Docker Compose:
+
+`docker compose -f docker-compose.integration.yml up -d`
 
 ## Bank simulator (external dependency)
 
@@ -66,23 +86,15 @@ This project depends on a provided bank simulator that must be running when exec
   - Card number ends with an even digit (2, 4, 6, 8): returns `200 OK` with an unauthorized response.
   - Card number ends with `0`: returns `503 Service Unavailable` (simulates a downstream service failure).
 
-### Running the simulator
-
-From the repository root, start the simulator with Docker Compose:
-
-
-docker-compose up bank_simulator
-
-
-(or `docker-compose up` to run all services defined in the compose file).
 
 ### Testing against the simulator
 
-- **Authorized example (odd last digit):**
+- **Authorized example (odd last digit except 1):**
 
 ```
 {
-  "cardNumber": "4111111111111111",
+  "merchantId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "cardNumber": "4111111111111113",
   "expiryMonth": 12,
   "expiryYear": 2026,
   "cvv": "123",
@@ -95,6 +107,7 @@ docker-compose up bank_simulator
 
 ```
 {
+  "merchantId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "cardNumber": "4111111111111112",
   "expiryMonth": 12,
   "expiryYear": 2026,
@@ -104,10 +117,11 @@ docker-compose up bank_simulator
 }
 ```
 
-- **Downstream error example (ends with 0):**
+- **Acquired bank error example (ends with 0):**
 
 ```
 {
+  "merchantId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "cardNumber": "4111111111111110",
   "expiryMonth": 12,
   "expiryYear": 2026,
@@ -122,32 +136,88 @@ docker-compose up bank_simulator
 - Ensure the simulator service is reachable from the API (check network and ports in the compose file).
 - When running integration tests or debugging locally, start the bank simulator first so the API's payment processing can call the simulator endpoint.
 
+
+## Fraud simulator (external dependency)
+
+This project depends on a provided fraud simulator that must be running when executing the API locally (or in an integration test environment). The simulator is defined in the repository's Docker Compose file (`docker-compose.yml` / `docker-compose.ml`) and exposes a simple HTTP endpoint that mimics a fraud processor.
+
+### How the fraud simulator behaves
+
+- If any required field is missing in the request, the simulator returns `400 Bad Request` with an error message.
+- If all required fields are present, the simulator's response depends on the last digit of the card number:
+  - Card number ends with all digit `except 1`: returns `200 OK` with an authorized response and a generated `authorization_code`.
+  - Card number ends with `1`: returns `200 OK` with an unauthorized response.
+  - Card number ends with `9`: returns `503 Service Unavailable` (simulates a downstream service failure).
+
+
+### Testing against the fraud simulator
+
+- **Authorized example (all digit except 1):**
+
+```
+{
+  "merchantId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "cardNumber": "4111111111111113",
+  "expiryMonth": 12,
+  "expiryYear": 2026,
+  "cvv": "123",
+  "currency": "USD",
+  "amount": 10.00
+}
+```
+
+- **Unauthorized example (1):**
+
+```
+{
+  "merchantId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "cardNumber": "4111111111111111",
+  "expiryMonth": 12,
+  "expiryYear": 2026,
+  "cvv": "123",
+  "currency": "USD",
+  "amount": 10.00
+}
+```
+
+- **Fraud service error example (ends with 9):**
+
+```
+{
+  "merchantId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "cardNumber": "4111111111111119",
+  "expiryMonth": 12,
+  "expiryYear": 2026,
+  "cvv": "123",
+  "currency": "USD",
+  "amount": 10.00
+}
+```
+
+### Notes
+
+- Ensure the simulator service is reachable from the API (check network and ports in the compose file).
+- When running integration tests or debugging locally, start the bank simulator first so the API's payment processing can call the simulator endpoint.
+
+
 ## Health checks
 
 This API exposes both liveness and readiness probes and includes an external readiness check for the acquiring bank (bank simulator).
 
 - Endpoints:
-  - `GET /health/live` — liveness probe. Should return 200 if the application is running.
-  - `GET /health/ready` — readiness probe. Includes registered readiness checks such as the acquiring bank health check.
-
-### Acquiring bank health check
-
-- Implemented by `AcquiringBankHealthCheck`
-- The check uses the registered `IAcquiringBankClient` to send a small probe `BankPaymentRequest` to the acquiring bank endpoint. The probe uses a card number ending with a digit that forces a reachable response (by default the implementation uses a card ending with `2` to force a 200 response from the simulator while representing an "unauthorized" outcome).
-- Outcomes handled:
-  - HealthCheck returns Healthy (200) when the client receives a non-null response from the simulator.
-  - Returns Degraded when the client returns null (reachable but no content).
-  - Returns Unhealthy when the simulator responds with `503 Service Unavailable` or when the request throws an exception indicating the service is unavailable.
+  - `GET /health/live` â€” liveness probe. Should return 200 if the application is running.
+  - `GET /health/ready` â€” readiness probe. Includes registered readiness checks such as the acquiring bank health check.
 
 ### How to test
 
-1. Start the bank simulator: `docker-compose up bank_simulator`.
+1. Start the external integrarion dependencies: `docker compose -f docker-compose.integration.yml up -d`.
 2. Start the API (`dotnet run --project PaymentGateway.Api`).
 3. Call the endpoints:
-   - `GET /health/live` — should return 200 when the app is running.
-   - `GET /health/ready` — should return 200 when the bank simulator is reachable and responding.
+   - `GET /health/live` â€” should return 200 when the app is running.
+   - `GET /health/ready` â€” should return 200 when all externals are reachable and responding.
 4. Simulate failures:
-   - Use a probe card number ending with `0` in the simulator to trigger 503 and observe the readiness endpoint return Unhealthy.
+   - Use a probe card number ending with `0` in the bank simulator to trigger 503 and observe the readiness endpoint return Unhealthy.
+   - Use a probe card number ending with `9` in the fraud simulator to trigger 503 and observe the readiness endpoint return Unhealthy.
 
 ## API
 
@@ -155,12 +225,13 @@ This API exposes both liveness and readiness probes and includes an external rea
 
 **Headers:**
 - `Content-Type: application/json`
-- Optional: `Idempotency-Key: <key>` — ensures safe retries
+- Optional: `Idempotency-Key: <key>` â€” ensures safe retries
 
 **Request body (example):**
 
 ```
 {
+  "merchantId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "cardNumber": "4111111111111111",
   "expiryMonth": 12,
   "expiryYear": 2026,
@@ -171,21 +242,21 @@ This API exposes both liveness and readiness probes and includes an external rea
 ```
 
 **Possible responses:**
-- `201 Created` — payment created. Location header points to `GET /api/v1/payments/{id}`
-- `200 OK` — duplicate idempotent request returning existing resource
-- `400 Bad Request` — validation errors
-- `409 Conflict` — conflict detected
-- `503 Service Unavailable` — downstream service unavailable
+- `201 Created` â€” payment created. Location header points to `GET /api/v1/payments/{id}`
+- `200 OK` â€” duplicate idempotent request returning existing resource
+- `400 Bad Request` â€” validation errors
+- `409 Conflict` â€” conflict detected
+- `503 Service Unavailable` â€” downstream service unavailable
 
 ### GET /api/v1/payments/{id}
 
 **Headers:**
-- Optional: `If-None-Match: "<etag>"` — server returns `304 Not Modified` when appropriate
+- Optional: `If-None-Match: "<etag>"` â€” server returns `304 Not Modified` when appropriate
 
 **Responses:**
-- `200 OK` — returns payment resource
-- `304 Not Modified` — resource not modified according to ETag
-- `404 Not Found` — no payment with the requested id
+- `200 OK` â€” returns payment resource
+- `304 Not Modified` â€” resource not modified according to ETag
+- `404 Not Found` â€” no payment with the requested id
 
 ## Testing
 
@@ -196,6 +267,110 @@ dotnet test
 
 
 Test projects include validators and handler tests. You can also use test coverage and CI tools as desired to maintain code quality.
+
+## Deployment
+
+### Github Actions
+
+#### Azure
+
+GitHub secret needed `AZURE_WEBAPP_PUBLISH_PROFILE`
+
+Add sensitive values manually in Azure Configuration or Key Vault references:
+```
+ConnectionStrings__PaymentDb
+RabbitMq__HostName
+RabbitMq__UserName
+RabbitMq__Password
+RabbitMq__Port
+RabbitMq__VirtualHost
+AcquiringBank__BaseUrl
+FraudService__BaseUrl
+Service__OpenTelemetry__OtlpEndpoint
+Serilog__WriteTo__1__Args__endpoint
+```
+
+### AWS
+
+GitHub secrets needed for  AWS_GITHUB_ACTIONS_ROLE_ARN
+
+```
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+```
+
+Store AWS SSM parameters
+
+```
+aws ssm put-parameter \
+  --name "/payment-gateway/prod/payment-db" \
+  --type "SecureString" \
+  --value "your-db-connection-string"
+
+aws ssm put-parameter \
+  --name "/payment-gateway/prod/rabbitmq-host" \
+  --type "SecureString" \
+  --value "your-rabbitmq-host"
+
+aws ssm put-parameter \
+  --name "/payment-gateway/prod/rabbitmq-username" \
+  --type "SecureString" \
+  --value "your-rabbitmq-user"
+
+aws ssm put-parameter \
+  --name "/payment-gateway/prod/rabbitmq-password" \
+  --type "SecureString" \
+  --value "your-rabbitmq-password"
+
+aws ssm put-parameter \
+  --name "/payment-gateway/prod/acquiring-bank-base-url" \
+  --type "SecureString" \
+  --value "https://your-acquiring-bank"
+
+aws ssm put-parameter \
+  --name "/payment-gateway/prod/fraud-service-base-url" \
+  --type "SecureString" \
+  --value "https://your-fraud-service"
+
+aws ssm put-parameter \
+  --name "/payment-gateway/prod/otlp-endpoint" \
+  --type "SecureString" \
+  --value "http://your-otel-collector:4318"
+
+aws ssm put-parameter \
+  --name "/payment-gateway/prod/otlp-logs-endpoint" \
+  --type "SecureString" \
+  --value "http://your-otel-collector:4318/v1/logs"
+```
+
+### K8S
+
+Required GitHub secret:`KUBE_CONFIG`
+
+Store it base64 encoded: `cat ~/.kube/config | base64`
+
+#### Apply order
+
+```bash
+kubectl apply -f k8s/prod/namespace.yaml
+kubectl apply -f k8s/prod/configmap.yaml
+kubectl apply -f k8s/prod/secret.yaml
+kubectl apply -f k8s/prod/service.yaml
+kubectl apply -f k8s/prod/deployment.yaml
+kubectl apply -f k8s/prod/hpa.yaml
+kubectl apply -f k8s/prod/pdb.yaml
+kubectl apply -f k8s/prod/ingress.yaml
+kubectl apply -f k8s/prod/istio-gateway.yaml
+kubectl apply -f k8s/prod/istio-virtualservice.yaml
+```
+
+#### Replace before production
+
+- `api.your-domain.com`
+- `ghcr.io/YOUR_ORG/payment-gateway-api:latest`
+- all values in `secret.yaml`
+- project path in `.github/workflows/k8s-prod.yml` if your API project path differs
+
 
 ## Coding standards
 

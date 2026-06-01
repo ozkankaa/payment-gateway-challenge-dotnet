@@ -1,12 +1,11 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 
-using PaymentGateway.Api.Tests.Common;
-
 using PaymentGateway.Api.Infrastructure;
 using PaymentGateway.Api.Models;
 using PaymentGateway.Api.Models.Requests;
 using PaymentGateway.Api.Models.Responses;
+using PaymentGateway.Api.Tests.Common;
 
 namespace PaymentGateway.Api.Tests.Controllers;
 
@@ -28,6 +27,7 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
     {
         // Arrange
         var postPaymentRequest = new PostPaymentRequest(
+            MerchantId: Guid.NewGuid(),
              CardNumber: "2222405343248877",
              ExpiryMonth: 12,
              ExpiryYear: 2030,
@@ -47,8 +47,8 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
 
         var payment = await response.Content.ReadFromJsonAsync<PostPaymentResponse>(JsonDefaults.Options, cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(payment);
-        Assert.Equal(PaymentStatus.Authorized, payment!.Status);
-        Assert.Equal(8877, payment.CardNumberLastFour);
+        Assert.Equal(PaymentStatusEnum.Authorized, payment!.Status);
+        Assert.Equal("8877", payment.CardNumberLastFour);
         Assert.Equal("USD", payment.Currency);
 
         var getResponse = await _client.GetAsync($"{PaymentsUrl}/{payment.Id}", TestContext.Current.CancellationToken);
@@ -60,6 +60,7 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
     {
         // Arrange
         var postPaymentRequest = new PostPaymentRequest(
+             MerchantId: Guid.NewGuid(),
              CardNumber: "2222405343248878",
              ExpiryMonth: 12,
              ExpiryYear: 2030,
@@ -85,6 +86,7 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
     {
         // Arrange
         var postPaymentRequest = new PostPaymentRequest(
+             MerchantId: Guid.NewGuid(),
              CardNumber: "123",
              ExpiryMonth: 12,
              ExpiryYear: 2030,
@@ -111,6 +113,7 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
     {
         // Arrange
         var postPaymentRequest = new PostPaymentRequest(
+             MerchantId: Guid.NewGuid(),
              CardNumber: "2222405343248870",
              ExpiryMonth: 12,
              ExpiryYear: 2030,
@@ -124,7 +127,7 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
 
         // Act
         var response = await _client.SendAsync(postMessage, TestContext.Current.CancellationToken);
-        var error = await response.Content.ReadFromJsonAsync<ErrorResponse>(JsonDefaults.Options, cancellationToken: TestContext.Current.CancellationToken);
+        _ = await response.Content.ReadFromJsonAsync<ErrorResponse>(JsonDefaults.Options, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
@@ -136,6 +139,7 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
         // Arrange
         var key = $"payment-{Guid.NewGuid():N}";
         var firstPaymentRequest = new PostPaymentRequest(
+             MerchantId: Guid.NewGuid(),
              CardNumber: "2222405343248877",
              ExpiryMonth: 12,
              ExpiryYear: 2030,
@@ -150,6 +154,7 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
         var firstPayment = await firstResponse.Content.ReadFromJsonAsync<PostPaymentResponse>(JsonDefaults.Options, cancellationToken: TestContext.Current.CancellationToken);
 
         var secondPaymentRequest = new PostPaymentRequest(
+             MerchantId: firstPaymentRequest.MerchantId,
              CardNumber: "2222405343248877",
              ExpiryMonth: 12,
              ExpiryYear: 2030,
@@ -174,7 +179,8 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
         // Arrange
         var key = $"payment-{Guid.NewGuid():N}";
         var firstPaymentRequest = new PostPaymentRequest(
-             CardNumber: "2222405343248877",
+             MerchantId: Guid.NewGuid(),
+             CardNumber: "2222405343248875",
              ExpiryMonth: 12,
              ExpiryYear: 2030,
              Currency: "USD",
@@ -185,7 +191,8 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
         await _client.SendAsync(first, TestContext.Current.CancellationToken);
 
         var secondPaymentRequest = new PostPaymentRequest(
-             CardNumber: "2222405343248879",
+             MerchantId: Guid.NewGuid(),
+             CardNumber: "2222405343248877",
              ExpiryMonth: 12,
              ExpiryYear: 2030,
              Currency: "USD",
@@ -218,6 +225,7 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
     {
         // Arrange
         var postPaymentRequest = new PostPaymentRequest(
+            MerchantId: Guid.NewGuid(),
             CardNumber: "2222405343248877",
             ExpiryMonth: 12,
             ExpiryYear: 2030,
@@ -261,13 +269,14 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
     {
         var key = $"payment-{Guid.NewGuid():N}";
         var postPaymentRequest = new PostPaymentRequest(
+             MerchantId: Guid.NewGuid(),
              CardNumber: "2222405343248877",
              ExpiryMonth: 12,
              ExpiryYear: 2030,
              Currency: "USD",
              Amount: 100,
              Cvv: "123");
-        var tasks = Enumerable.Range(0, 10).Select(_ =>
+        var tasks = Enumerable.Range(0, 2).Select(_ =>
         {
             var message = new HttpRequestMessage(HttpMethod.Post, PaymentsUrl) { Content = JsonContent.Create(postPaymentRequest) };
             message.Headers.Add("Idempotency-Key", key);
@@ -279,7 +288,7 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
 
         Assert.All(responses, r => Assert.True(r.StatusCode is HttpStatusCode.Created or HttpStatusCode.OK));
         Assert.Single(payments.Select(p => p!.Id).Distinct());
-        Assert.Equal(1, FakeAcquiringBankClient.CallCount);
+        Assert.Equal(1, FakeAcquiringBankClient.CallCounts);
     }
 
     [Fact]

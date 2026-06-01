@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-using PaymentGateway.Api.Models.Requests;
-using PaymentGateway.Api.Services;
+using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService;
+using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService.Requests;
 
 namespace PaymentGateway.Api.HealthChecks;
 

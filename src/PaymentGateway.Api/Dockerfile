@@ -1,27 +1,21 @@
-﻿# Multi-stage Dockerfile for PaymentGateway.Api (.NET 8)
-# Build stage
+﻿FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
+
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy csproj and restore first to leverage layer caching
-COPY ["PaymentGateway.Api/PaymentGateway.Api.csproj", "PaymentGateway.Api/"]
-RUN dotnet restore "PaymentGateway.Api/PaymentGateway.Api.csproj"
-
-# Copy the rest of the solution and publish
 COPY . .
-WORKDIR /src/PaymentGateway.Api
-RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet restore
+RUN dotnet publish ./src/PaymentGateway.Api/PaymentGateway.Api.csproj \
+    -c Release \
+    -o /app/publish \
+    --no-restore
 
-# Runtime stage
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM runtime AS final
 WORKDIR /app
-
-# Listen on port 80 (map externally as needed)
-ENV ASPNETCORE_URLS=http://+:80
-EXPOSE 80
-
-# Copy published output from build stage
 COPY --from=build /app/publish .
-
-# Run the API
+ENV ASPNETCORE_URLS=http://+:8080
 ENTRYPOINT ["dotnet", "PaymentGateway.Api.dll"]

@@ -1,4 +1,4 @@
-﻿using PaymentGateway.Api.Application.Payments.ProcessPayment;
+﻿using PaymentGateway.Api.Application.Features.Payments.ProcessPayment;
 
 using System.Security.Cryptography;
 using System.Text;
