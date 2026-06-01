@@ -398,3 +398,7 @@ If you encounter issues, consider the following:
 Specify your project's license here.
 
 This revised README now includes comprehensive information about the health checks, ensuring that users understand their role and how to interact with them while maintaining the overall structure and clarity of the document.
+
+## System Design
+
+![System Design Diagram](images/system_design.png)
