@@ -19,6 +19,7 @@ A simple payment gateway API implemented in .NET 8 (C# 12). This project exposes
 - Structured logging with using Serilog for better observability
 - Unit and integration tests included to ensure code quality
 - Health checks for application liveness and readiness
+- Added OpenApi and Swagger documentations
 - OpenTelemtry implementation for better observability and added custom metrics like success/failure payments
 - SAGA pattern implementation via handling payment
 - CQRS pattern implementation handling business logic in application handlers
@@ -41,7 +42,6 @@ To build the project, run the following command in your terminal:
 
 
 dotnet build
-
 
 ## Run
 

@@ -13,8 +13,47 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PaymentGateway.Api.Tests", 
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
 	ProjectSection(SolutionItems) = preProject
-		docker-compose.yml = docker-compose.yml
 		README.md = README.md
+		docker-compose.integration.yml = docker-compose.integration.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "deployment", "deployment", "{D0782D0B-749B-4349-8B22-848FB49BF4C6}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{E350B009-89C2-4AE8-83ED-6984A79BFC07}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{F935B418-6525-4C4D-8F25-5F868F26C718}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\aws-ecs.yml = .github\workflows\aws-ecs.yml
+		.github\workflows\azure-appservice.yml = .github\workflows\azure-appservice.yml
+		.github\workflows\k8s-prod.yml = .github\workflows\k8s-prod.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".aws", ".aws", "{2CA7E89D-BE77-4F00-9B10-BC1FD5D57A80}"
+	ProjectSection(SolutionItems) = preProject
+		.aws\task-definition.json = .aws\task-definition.json
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{6879E517-B007-405A-8CA6-9718ABAE2010}"
+	ProjectSection(SolutionItems) = preProject
+		scripts\azure-appsettings.sh = scripts\azure-appsettings.sh
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "k8s", "k8s", "{A5C215FC-DCCF-4549-B57F-8C3B914BBB0B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "prod", "prod", "{5B60350A-3A2C-4FD0-AB16-DD86A2D353B6}"
+	ProjectSection(SolutionItems) = preProject
+		k8s\prod\configmap.yaml = k8s\prod\configmap.yaml
+		k8s\prod\deployment.yaml = k8s\prod\deployment.yaml
+		k8s\prod\hpa.yaml = k8s\prod\hpa.yaml
+		k8s\prod\ingress.yaml = k8s\prod\ingress.yaml
+		k8s\prod\istio-gateway.yaml = k8s\prod\istio-gateway.yaml
+		k8s\prod\istio-virtualservice.yaml = k8s\prod\istio-virtualservice.yaml
+		k8s\prod\namespace.yaml = k8s\prod\namespace.yaml
+		k8s\prod\pdb.yaml = k8s\prod\pdb.yaml
+		k8s\prod\README.md = k8s\prod\README.md
+		k8s\prod\secret.example.yaml = k8s\prod\secret.example.yaml
+		k8s\prod\secret.yaml = k8s\prod\secret.yaml
+		k8s\prod\service.yaml = k8s\prod\service.yaml
 	EndProjectSection
 EndProject
 Global
@@ -38,6 +77,13 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{3CD9AAA2-2097-4874-9C40-FFDE26EE8E43} = {F36BD266-CD75-4438-9BF9-CD91CDB18F2B}
 		{3A92D8D6-0359-4752-91AE-D8A59622518A} = {1EF69307-274F-458E-BBE8-4D390512A8C6}
+		{D0782D0B-749B-4349-8B22-848FB49BF4C6} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{E350B009-89C2-4AE8-83ED-6984A79BFC07} = {D0782D0B-749B-4349-8B22-848FB49BF4C6}
+		{F935B418-6525-4C4D-8F25-5F868F26C718} = {E350B009-89C2-4AE8-83ED-6984A79BFC07}
+		{2CA7E89D-BE77-4F00-9B10-BC1FD5D57A80} = {D0782D0B-749B-4349-8B22-848FB49BF4C6}
+		{6879E517-B007-405A-8CA6-9718ABAE2010} = {D0782D0B-749B-4349-8B22-848FB49BF4C6}
+		{A5C215FC-DCCF-4549-B57F-8C3B914BBB0B} = {D0782D0B-749B-4349-8B22-848FB49BF4C6}
+		{5B60350A-3A2C-4FD0-AB16-DD86A2D353B6} = {A5C215FC-DCCF-4549-B57F-8C3B914BBB0B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {E7B4B67C-5AA8-4BDF-8C72-72F15801C1BD}
