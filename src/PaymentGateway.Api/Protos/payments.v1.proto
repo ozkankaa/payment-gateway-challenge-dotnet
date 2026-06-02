@@ -1,0 +1,38 @@
+﻿syntax = "proto3";
+
+option csharp_namespace = "PaymentGateway.Api.Grpc.V1";
+
+package payments;
+
+service PaymentsGrpc {
+  rpc GetPayment (GetPaymentGrpcRequest) returns (PaymentGrpcResponse);
+  rpc ProcessPayment (ProcessPaymentGrpcRequest) returns (PaymentGrpcResponse);
+}
+
+message GetPaymentGrpcRequest {
+  string id = 1;
+}
+
+message ProcessPaymentGrpcRequest {
+  string idempotency_key = 1;
+  string merchant_id = 2;
+  string card_number = 3;
+  int32 expiry_month = 4;
+  int32 expiry_year = 5;
+  string currency = 6;
+  int64 amount = 7;
+  string cvv = 8;
+}
+
+message PaymentGrpcResponse {
+  string id = 1;
+  string merchant_id = 2;
+  string status = 3;
+  string card_number_last_four = 4;
+  string expiry_month = 5;
+  string expiry_year = 6;
+  int64 amount = 7;
+  string currency = 8;
+  string error_code = 9;
+  string error_message = 10;
+}

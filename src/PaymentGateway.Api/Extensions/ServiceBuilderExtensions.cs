@@ -20,6 +20,7 @@ using PaymentGateway.Api.Application.Features.Payments.IntegrationEvents;
 using PaymentGateway.Api.Application.Features.Payments.ProcessPayment;
 using PaymentGateway.Api.Domain.Events.PaymentCaptured;
 using PaymentGateway.Api.Filters;
+using PaymentGateway.Api.Grpc;
 using PaymentGateway.Api.Infrastructure;
 using PaymentGateway.Api.Infrastructure.BackgroundServices;
 using PaymentGateway.Api.Infrastructure.Messaging.Abstraction;
@@ -41,6 +42,9 @@ public static class ServiceBuilderExtensions
     {
 
         services.AddControllers();
+        services.AddGrpc();
+        services.AddGrpcReflection();
+
         services.ConfigureServices(configuration);
         services.AddApiVersioning();
 

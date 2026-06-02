@@ -5,10 +5,7 @@ A simple payment gateway API implemented in .NET 8 (C# 12). This project exposes
 ## Key features
 
 - Built with .NET 8 and C# 12
-- Stateless REST API with versioning (v1.0)
-- Endpoints:
-  - `GET /api/v1/payments/{id}` — retrieve a payment
-  - `POST /api/v1/payments` — create/process a payment
+- Stateless REST and gRPC API with versioning (v1.0)
 - Idempotency support via the `Idempotency-Key` header
 - ETag generation and conditional GETs
 - Output caching and cache eviction by tag: `PaymentsCache`
@@ -48,10 +45,88 @@ dotnet build
 To run the API, navigate to the solution root and execute:
 
 
-dotnet run --project PaymentGateway.Api
+`dotnet run --project PaymentGateway.Api`
 
+The Payment Gateway API now supports both REST and gRPC protocols.
+
+The HTTPS endpoint supports both:
+
+- HTTP/1.1 (REST)
+- HTTP/2 (gRPC)
+
+## Supported Protocols
+
+| Protocol | Purpose |
+|---|---|
+| REST / JSON | Standard HTTP API integration |
+| gRPC | High-performance internal/external service-to-service communication |
+
+
+
+
+### Http
 
 The API will be available at `https://localhost:{port}/api/v1/payments`.
+
+### gRPC
+
+The API will be available at `https://localhost:{port}
+
+service PaymentsGrpcV1 {
+  rpc GetPayment (GetPaymentGrpcRequest) returns (PaymentGrpcResponse);
+  rpc ProcessPayment (ProcessPaymentGrpcRequest) returns (PaymentGrpcResponse);
+}
+
+Proto Location: `src/PaymentGateway.Api/Protos/payments.proto`
+
+External consumers should use the .proto contract to generate clients.
+
+```
+// Payment service v1.
+// Used by external merchants to process and retrieve payments.
+service PaymentsGrpcV1 {
+  // Processes a payment request.
+  rpc ProcessPayment (ProcessPaymentGrpcRequest) returns (PaymentGrpcResponse);
+
+  // Retrieves payment by payment id.
+  rpc GetPayment (GetPaymentGrpcRequest) returns (PaymentGrpcResponse);
+}
+```
+
+Process payment gRPC request example:
+```
+{
+  "idempotencyKey": "idem-001",
+  "merchantId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "cardNumber": "4111111111111113",
+  "expiryMonth": 10,
+  "expiryYear": 2026,
+  "currency": "GBP",
+  "amount": "10",
+  "cvv": "123"
+}
+```
+or 
+
+```
+{
+  "idempotency_key": "idem-001",
+  "merchant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "card_number": "4111111111111113",
+  "expiry_month": 10,
+  "expiry_year": 2026,
+  "currency": "GBP",
+  "amount": 10,
+  "cvv": "123"
+}
+```
+
+get request example:
+```
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+}
+```
 
 ## Configuration
 

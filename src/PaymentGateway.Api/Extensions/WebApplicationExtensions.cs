@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
+using PaymentGateway.Api.Grpc;
 using PaymentGateway.Api.Infrastructure.Persistence;
 using PaymentGateway.Api.Middleware;
 
@@ -20,6 +21,7 @@ public static class WebApplicationExtensions
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {
+            app.MapGrpcReflectionService();
             app.UseSwagger();
             app.UseSwaggerUI(options =>
             {
@@ -42,6 +44,8 @@ public static class WebApplicationExtensions
         app.MapHealthChecksEndpoints();
 
         app.MapControllers();
+
+        app.MapGrpcService<PaymentGrpcV1Service>();
 
         using (var scope = app.Services.CreateAsyncScope())
         {

@@ -11,6 +11,7 @@ public static class PaymentDtoMapper
         return new PaymentDto
         {
             Id = payment.Id,
+            MerchantId = payment.MerchantId,
             Currency = payment.Money.Currency,
             Amount = payment.Money.Amount,
             CardNumberLastFour = int.Parse(payment.CardDetails.LastFour),
