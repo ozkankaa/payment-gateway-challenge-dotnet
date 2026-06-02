@@ -3,10 +3,10 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace PaymentGateway.Api.Infrastructure.Persistence.Migrations
+namespace PaymentGateway.Api.Infrastructure.Persistence.Migrations.Payment
 {
     /// <inheritdoc />
-    public partial class InitialPaymentSchema : Migration
+    public partial class InitialPayment : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

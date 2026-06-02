@@ -20,7 +20,6 @@ using PaymentGateway.Api.Application.Features.Payments.IntegrationEvents;
 using PaymentGateway.Api.Application.Features.Payments.ProcessPayment;
 using PaymentGateway.Api.Domain.Events.PaymentCaptured;
 using PaymentGateway.Api.Filters;
-using PaymentGateway.Api.Grpc;
 using PaymentGateway.Api.Infrastructure;
 using PaymentGateway.Api.Infrastructure.BackgroundServices;
 using PaymentGateway.Api.Infrastructure.Messaging.Abstraction;
@@ -33,6 +32,8 @@ using PaymentGateway.Api.Infrastructure.Services.IdempotencyService;
 using PaymentGateway.Api.Middleware;
 using PaymentGateway.Api.Models.Responses;
 using PaymentGateway.Api.Options;
+using PaymentGateway.Api.Saga;
+using PaymentGateway.Api.Saga.Consumers;
 
 namespace PaymentGateway.Api.Extensions;
 
@@ -42,10 +43,12 @@ public static class ServiceBuilderExtensions
     {
 
         services.AddControllers();
+
         services.AddGrpc();
         services.AddGrpcReflection();
 
         services.ConfigureServices(configuration);
+
         services.AddApiVersioning();
 
         services.AddHttpContextAccessor();
@@ -133,6 +136,15 @@ public static class ServiceBuilderExtensions
                 Version = "v1",
                 Description = "Processes and retrieves card payments."
             });
+            options.OperationFilter<IdempotencyHeaderOperationFilter>();
+
+            options.SwaggerDoc("v2", new OpenApiInfo
+            {
+                Title = "Payment Gateway API",
+                Version = "v2",
+                Description = "Processes and retrieves card payments."
+            });
+
             options.OperationFilter<IdempotencyHeaderOperationFilter>();
 
             var xmlPath = Path.Combine(AppContext.BaseDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.xml");
@@ -229,16 +241,95 @@ public static class ServiceBuilderExtensions
 
         services.AddPaymentDbContext(configuration);
 
+        services.AddSaga(configuration);
+
         return services;
-    }    
+    }
+
+    public static IServiceCollection AddSaga(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddDbContext<PaymentSagaDbContext>(options =>
+        {
+            options.UseSqlite(
+                configuration.GetConnectionString("PaymentSagaDb"),
+                x => x.MigrationsHistoryTable("__EFMigrationsHistory_PaymentSaga"));
+        });
+
+        var rabbitOptions = configuration.GetSection("RabbitMq").Get<RabbitMqOptions>() ?? new RabbitMqOptions();
+
+        services.AddMassTransit(x =>
+        {
+            x.SetKebabCaseEndpointNameFormatter();
+
+            x.AddSagaStateMachine<PaymentSagaStateMachine, PaymentSagaState>()
+                .EntityFrameworkRepository(r =>
+                {
+                    r.ConcurrencyMode = ConcurrencyMode.Optimistic;
+
+                    r.AddDbContext<DbContext, PaymentSagaDbContext>((provider, options) =>
+                    {
+                        options.UseSqlite(configuration.GetConnectionString("PaymentSagaDb"));
+                    });
+
+                    r.UseSqlite();
+                });
+
+            x.AddConsumer<StartPaymentDebugConsumer>();
+
+            x.AddConsumer<ValidatePaymentConsumer>();
+            x.AddConsumer<CheckIdempotencyConsumer>();
+            x.AddConsumer<CheckFraudConsumer>();
+            x.AddConsumer<AuthorizePaymentConsumer>();
+            x.AddConsumer<CapturePaymentConsumer>();
+
+            //x.AddEntityFrameworkOutbox<PaymentSagaDbContext>(o =>
+            //{
+            //    //o.QueryDelay = TimeSpan.FromSeconds(1);
+
+            //    o.UseSqlite();
+
+            //    o.UseBusOutbox();
+            //});
+
+            x.UsingRabbitMq((context, cfg) =>
+            {
+                cfg.Host(rabbitOptions.HostName, "/", h =>
+                {
+                    h.Username(rabbitOptions.UserName);
+                    h.Password(rabbitOptions.Password);
+                });
+
+                cfg.ReceiveEndpoint("payment-saga", e =>
+                {
+                    e.ConfigureSaga<PaymentSagaState>(context);
+                });
+
+                // SQLite is not ideal for pessimistic locking (unblock this when use Postgres or SQL Server), but we can still use message retry for transient exceptions like deadlocks or connection issues.
+                cfg.UseMessageRetry(r =>
+                {
+                    r.Exponential(
+                        retryLimit: 5,
+                        minInterval: TimeSpan.FromSeconds(1),
+                        maxInterval: TimeSpan.FromSeconds(30),
+                        intervalDelta: TimeSpan.FromSeconds(5));
+                });
+
+                cfg.ConfigureEndpoints(context);
+            });
+        });
+
+        return services;
+    }
 
     public static IServiceCollection AddPaymentDbContext(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddDbContext<PaymentDbContext>(options =>
         {
             options.UseSqlite(
-                configuration.GetConnectionString("PaymentDb"));
+                configuration.GetConnectionString("PaymentDb"),
+                x => x.MigrationsHistoryTable("__EFMigrationsHistory_Payment"));
         });
+
         return services;
     }
 

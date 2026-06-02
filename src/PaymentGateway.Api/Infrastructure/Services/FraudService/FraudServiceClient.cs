@@ -5,7 +5,7 @@ namespace PaymentGateway.Api.Infrastructure.Services.FraudService;
 
 public class FraudServiceClient(HttpClient httpClient, ILogger<FraudServiceClient> logger) : IFraudServiceClient
 {
-    public async Task<FraudCheckResponse?> CheckAsync(FraudCheckRequest request, CancellationToken cancellationToken)
+    public async Task<FraudCheckResponse?> CheckAsync(FraudCheckRequest request, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.PostAsJsonAsync("/frauds", request, cancellationToken);
 
