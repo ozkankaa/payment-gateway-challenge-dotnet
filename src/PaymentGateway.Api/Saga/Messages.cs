@@ -4,6 +4,7 @@ namespace PaymentGateway.Api.Saga;
 
 public record StartPayment(
     Guid CorrelationId,
+    Guid PaymentId,
     Guid MerchantId,
     string CardToken,
     string CardLast4,
@@ -18,6 +19,7 @@ public record StartPayment(
 
 public record ValidatePayment(
     Guid CorrelationId,
+    Guid PaymentId,
     Guid MerchantId,
     string CardNumber,
     int? ExpiryMonth,
@@ -26,18 +28,21 @@ public record ValidatePayment(
     long? Amount,
     string Cvv,
     string IdempotencyKey);
-public record PaymentValidated(Guid CorrelationId,
+public record PaymentValidated(
+    Guid CorrelationId,
+    Guid PaymentId,
     string CardNumber,
     int? ExpiryMonth,
     int? ExpiryYear,
     string Currency,
     long? Amount,
     string Cvv);
-public record PaymentValidationFailed(Guid CorrelationId, ErrorDto? Error);
+public record PaymentValidationFailed(Guid CorrelationId, Guid PaymentId, ErrorDto? Error);
 
 
 public record CheckIdempotency(
     Guid CorrelationId,
+    Guid PaymentId,
     string IdempotencyKey,
     string RequestHash,
     string CardNumber,
@@ -49,17 +54,19 @@ public record CheckIdempotency(
 
 public record IdempotencyAccepted(
     Guid CorrelationId,
+    Guid PaymentId,
     string CardNumber,
     int? ExpiryMonth,
     int? ExpiryYear,
     string Currency,
     long? Amount,
     string Cvv);
-public record DuplicatePaymentDetected(Guid CorrelationId, PaymentDto Payment);
-public record IdempotencyFailed(Guid CorrelationId, ErrorDto? Error);
+public record DuplicatePaymentDetected(Guid CorrelationId, Guid PaymentId, PaymentDto Payment);
+public record IdempotencyFailed(Guid CorrelationId, Guid PaymentId, ErrorDto? Error);
 
 public record CheckFraud(
     Guid CorrelationId,
+    Guid PaymentId,
     string CardNumber,
     int? ExpiryMonth,
     int? ExpiryYear,
@@ -69,17 +76,19 @@ public record CheckFraud(
 
 public record FraudApproved(
     Guid CorrelationId,
+    Guid PaymentId,
     string CardNumber,
     int? ExpiryMonth,
     int? ExpiryYear,
     string Currency,
     long? Amount,
     string Cvv);
-public record FraudRejected(Guid CorrelationId, ErrorDto? Error);
-public record FraudFailed(Guid CorrelationId, ErrorDto? Error);
+public record FraudRejected(Guid CorrelationId, Guid PaymentId, ErrorDto? Error);
+public record FraudFailed(Guid CorrelationId, Guid PaymentId, ErrorDto? Error);
 
 public record AuthorizePayment(
     Guid CorrelationId,
+    Guid PaymentId,
     string CardNumber,
     int? ExpiryMonth,
     int? ExpiryYear,
@@ -89,6 +98,7 @@ public record AuthorizePayment(
 
 public record PaymentAuthorized(
     Guid CorrelationId,
+    Guid PaymentId,
     string PspId,
     string PspTransactionId,
     string CardNumber,
@@ -99,10 +109,12 @@ public record PaymentAuthorized(
 
 public record PaymentAuthorizationFailed(
     Guid CorrelationId,
+    Guid PaymentId,
     ErrorDto? Error);
 
 public record CapturePayment(
     Guid CorrelationId,
+    Guid PaymentId,
     Guid MerchantId,
     string PspId,
     string PspTransactionId,
@@ -120,6 +132,7 @@ public record PaymentCaptured(
 
 public record PaymentCapureFailed(
     Guid CorrelationId,
+    Guid PaymentId,
     ErrorDto? Error);
 
 public record LedgerPaymentAuthorized(

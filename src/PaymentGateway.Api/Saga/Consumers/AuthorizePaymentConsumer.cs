@@ -27,6 +27,7 @@ public class AuthorizePaymentConsumer : IConsumer<AuthorizePayment>
             {
                 await context.Publish(new PaymentAuthorizationFailed(
                 context.Message.CorrelationId,
+                context.Message.PaymentId,
                 new ErrorDto("payment_rejected", "Payment was rejected by the acquiring bank")));
                 return;
             }
@@ -35,12 +36,14 @@ public class AuthorizePaymentConsumer : IConsumer<AuthorizePayment>
             {
                 await context.Publish(new PaymentAuthorizationFailed(
                 context.Message.CorrelationId,
+                context.Message.PaymentId,
                 new ErrorDto("payment_declined", "Payment was declined by the acquiring bank")));
                 return;
             }
 
             await context.Publish(new PaymentAuthorized(
                 context.Message.CorrelationId,
+                context.Message.PaymentId,
                 "acquiring_bank",
                 bankResponse.AuthorizationCode!,
                 context.Message.CardNumber,
@@ -53,6 +56,7 @@ public class AuthorizePaymentConsumer : IConsumer<AuthorizePayment>
         {
             await context.Publish(new PaymentAuthorizationFailed(
                 context.Message.CorrelationId,
+                context.Message.PaymentId,
                 new ErrorDto("service_unavailable", "The acquiring bank service is unavailable")));
         }
     }

@@ -17,13 +17,16 @@ public class CheckFraudConsumer(IFraudServiceClient fraudServiceClient) : IConsu
 
             if (response is null || !response.Authorized)
             {
-                await context.Publish(new FraudRejected(context.Message.CorrelationId, 
+                await context.Publish(new FraudRejected(
+                    context.Message.CorrelationId, 
+                    context.Message.PaymentId,
                     new ErrorDto("fraud_rejected", "Fraud service rejected payment")));
                 return;
 
             }
             await context.Publish(new FraudApproved(
                 context.Message.CorrelationId,
+                context.Message.PaymentId,
                 context.Message.CardNumber,
                 context.Message.ExpiryMonth,
                 context.Message.ExpiryYear,
@@ -36,6 +39,7 @@ public class CheckFraudConsumer(IFraudServiceClient fraudServiceClient) : IConsu
         {
             await context.Publish(new FraudFailed(
                 context.Message.CorrelationId,
+                context.Message.PaymentId,
                 new ErrorDto("fraud_service_error", ex.Message)));
         }
     }

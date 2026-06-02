@@ -25,23 +25,36 @@ public class CheckIdempotencyConsumer(IIdempotencyService idempotencyService) : 
             switch (idempotencyResult.Status)
             {
                 case IdempotencyStatus.Conflict:
-                    await context.Publish(new IdempotencyFailed(context.Message.CorrelationId, idempotencyResult.Error));
+                    await context.Publish(new IdempotencyFailed(
+                        context.Message.CorrelationId, 
+                        context.Message.PaymentId,
+                        idempotencyResult.Error));
                     return;
 
                 case IdempotencyStatus.Duplicate when idempotencyResult.Payment is not null:
-                    await context.Publish(new DuplicatePaymentDetected(context.Message.CorrelationId, idempotencyResult.Payment));
+                    await context.Publish(new DuplicatePaymentDetected(
+                        context.Message.CorrelationId, 
+                        context.Message.PaymentId,
+                        idempotencyResult.Payment));
                     return;
 
                 case IdempotencyStatus.Error:
-                    await context.Publish(new IdempotencyFailed(context.Message.CorrelationId, idempotencyResult.Error));
+                    await context.Publish(new IdempotencyFailed(
+                        context.Message.CorrelationId, 
+                        context.Message.PaymentId, 
+                        idempotencyResult.Error));
                     return;
                 case IdempotencyStatus.Updated when idempotencyResult.Payment is not null:
-                    await context.Publish(new DuplicatePaymentDetected(context.Message.CorrelationId, idempotencyResult.Payment));
+                    await context.Publish(new DuplicatePaymentDetected(
+                        context.Message.CorrelationId, 
+                        context.Message.PaymentId,
+                        idempotencyResult.Payment));
                     return;
 
                 default:
                     await context.Publish(new IdempotencyAccepted(
                         context.Message.CorrelationId,
+                        context.Message.PaymentId,
                         context.Message.CardNumber,
                         context.Message.ExpiryMonth,
                         context.Message.ExpiryYear,
@@ -55,6 +68,7 @@ public class CheckIdempotencyConsumer(IIdempotencyService idempotencyService) : 
         {
             await context.Publish(new IdempotencyFailed(
                 context.Message.CorrelationId,
+                context.Message.PaymentId,
                 new ErrorDto("idempotency_error", ex.Message)));
         }
     }

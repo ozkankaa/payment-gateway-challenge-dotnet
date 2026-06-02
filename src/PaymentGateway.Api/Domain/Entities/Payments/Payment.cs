@@ -38,6 +38,16 @@ public sealed class Payment : AggregateRoot, IEntity
         CardDetails cardDetails,
         Money money)
     {
+        return Create(Guid.NewGuid(), idempotencyKey, merchantId, cardDetails, money);
+    }
+
+    public static Payment Create(
+        Guid id,
+        string idempotencyKey,
+        Guid merchantId,
+        CardDetails cardDetails,
+        Money money)
+    {
         if (merchantId == Guid.Empty)
             throw new DomainValidationException("Merchant id is required.", nameof(merchantId));
 
@@ -46,7 +56,7 @@ public sealed class Payment : AggregateRoot, IEntity
 
         var payment = new Payment
         {
-            Id = Guid.NewGuid(),
+            Id = id,
             MerchantId = merchantId,
             IdempotencyKey = idempotencyKey,
             CardDetails = cardDetails,

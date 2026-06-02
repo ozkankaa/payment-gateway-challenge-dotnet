@@ -42,6 +42,7 @@ public class PaymentSagaStateMachine : MassTransitStateMachine<PaymentSagaState>
             x.SetSagaFactory(context => new PaymentSagaState
             {
                 CorrelationId = context.Message.CorrelationId,
+                PaymentId = context.Message.PaymentId,
                 CurrentState = "Initial",
                 MerchantId = context.Message.MerchantId,
                 CardToken = context.Message.CardToken,
@@ -75,6 +76,7 @@ public class PaymentSagaStateMachine : MassTransitStateMachine<PaymentSagaState>
                 })
                 .Send(new Uri("queue:validate-payment"), ctx =>
                     new ValidatePayment(ctx.Saga.CorrelationId,
+                                            ctx.Saga.PaymentId,
                                             ctx.Saga.MerchantId,
                                             ctx.Message.CardNumber,
                                             ctx.Message.ExpiryMonth,
@@ -95,6 +97,7 @@ public class PaymentSagaStateMachine : MassTransitStateMachine<PaymentSagaState>
             .Send(new Uri("queue:check-idempotency"), ctx =>
                 new CheckIdempotency(
                     ctx.Saga.CorrelationId,
+                    ctx.Saga.PaymentId,
                     ctx.Saga.IdempotencyKey,
                     ctx.Saga.RequestHash,
                     ctx.Message.CardNumber,
@@ -123,6 +126,7 @@ public class PaymentSagaStateMachine : MassTransitStateMachine<PaymentSagaState>
             .Send(new Uri("queue:check-fraud"), ctx =>
                 new CheckFraud(
                     ctx.Saga.CorrelationId,
+                    ctx.Saga.PaymentId,
                     ctx.Message.CardNumber,
                     ctx.Message.ExpiryMonth,
                     ctx.Message.ExpiryYear,
@@ -158,6 +162,7 @@ public class PaymentSagaStateMachine : MassTransitStateMachine<PaymentSagaState>
                 .Send(new Uri("queue:authorize-payment"), ctx =>
                     new AuthorizePayment(
                         ctx.Saga.CorrelationId,
+                        ctx.Saga.PaymentId,
                         ctx.Message.CardNumber,
                         ctx.Message.ExpiryMonth,
                         ctx.Message.ExpiryYear,
@@ -195,6 +200,7 @@ public class PaymentSagaStateMachine : MassTransitStateMachine<PaymentSagaState>
                 .Publish(ctx =>
                     new CapturePayment(
                         ctx.Saga.CorrelationId,
+                        ctx.Saga.PaymentId,
                         ctx.Saga.MerchantId,
                         ctx.Saga.PspId!,
                         ctx.Saga.PspTransactionId!,

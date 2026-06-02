@@ -20,6 +20,7 @@ public class CapturePaymentConsumer(
         try
         {
             var payment = Payment.Create(
+                    context.Message.PaymentId,
                     context.Message.IdempotencyKey,
                     context.Message.MerchantId,
                     CardDetails.Create(
@@ -29,6 +30,11 @@ public class CapturePaymentConsumer(
                     Money.Create(
                         context.Message.Amount!.Value,
                         context.Message.Currency));
+
+            payment.MarkAsIdempotencyVerified();
+            payment.MarkAsFraudCheckPassed();
+            payment.MarkAsAuthorized(context.Message.PspId, context.Message.PspTransactionId);
+            payment.MarkAsCaptured();
 
             await paymentRepository.AddAsync(payment);
 
@@ -46,6 +52,7 @@ public class CapturePaymentConsumer(
         {
             await context.Publish(new PaymentCapureFailed(
                 CorrelationId: context.Message.CorrelationId,
+                PaymentId: context.Message.PaymentId,
                 Error: new ErrorDto("payment_capture_failed",ex.Message)));
         }
     }

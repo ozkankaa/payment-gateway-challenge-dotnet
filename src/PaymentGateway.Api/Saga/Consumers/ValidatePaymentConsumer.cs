@@ -23,6 +23,7 @@ namespace PaymentGateway.Api.Saga.Consumers
             {
                 await context.Publish(new PaymentValidated(
                     context.Message.CorrelationId,
+                    context.Message.PaymentId,
                     context.Message.CardNumber,
                     context.Message.ExpiryMonth,
                     context.Message.ExpiryYear,
@@ -33,8 +34,10 @@ namespace PaymentGateway.Api.Saga.Consumers
             else
             {
                 await context.Publish(
-                    new PaymentValidationFailed(context.Message.CorrelationId,
-                    PaymentFailureFactory.InvalidPaymentRequest(validationErrors)));
+                    new PaymentValidationFailed(
+                        context.Message.CorrelationId,
+                        context.Message.PaymentId,
+                        PaymentFailureFactory.InvalidPaymentRequest(validationErrors)));
             }
         }
     }
