@@ -15,12 +15,8 @@ public class PaymentSagaState : SagaStateMachineInstance
     public string CardToken { get; set; } = default!;
     public string CardLast4 { get; set; } = default!;
 
-    //public string? CardNumber { get; set; }
     public long Amount { get; set; }
     public string? Currency { get; set; }
-    //public int ExpiryMonth { get; set; }
-    //public int ExpiryYear { get; set; }
-    //public string? Cvv { get; set; }
 
     public string IdempotencyKey { get; set; } = default!;
     public string? RequestHash { get; set; }
