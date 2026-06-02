@@ -5,7 +5,7 @@ A simple payment gateway API implemented in .NET 8 (C# 12). This project exposes
 ## Key features
 
 - Built with .NET 8 and C# 12
-- Stateless REST and gRPC API with versioning (v1.0)
+- Stateless REST and gRPC API with versioning (v1.0/v2.0)
 - Idempotency support via the `Idempotency-Key` header
 - ETag generation and conditional GETs
 - Output caching and cache eviction by tag: `PaymentsCache`
@@ -18,7 +18,7 @@ A simple payment gateway API implemented in .NET 8 (C# 12). This project exposes
 - Health checks for application liveness and readiness
 - Added OpenApi and Swagger documentations
 - OpenTelemtry implementation for better observability and added custom metrics like success/failure payments
-- SAGA pattern implementation via handling payment
+- SAGA pattern implementation via handling payment (v2.0)
 - CQRS pattern implementation handling business logic in application handlers
 - DDD implementation with aggragated payment domain and handling domain events
 - EDD implementation with using RabbitMQ sending messages to external services
