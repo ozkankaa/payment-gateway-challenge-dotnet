@@ -4,10 +4,10 @@ using PaymentGateway.Api.Application.Abstractions.CQRS;
 using PaymentGateway.Api.Application.Abstractions.Persistence;
 using PaymentGateway.Api.Application.Features.Payments.Dtos;
 using PaymentGateway.Api.Application.Features.Payments.Mappers;
-using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService;
-using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService.Requests;
-using PaymentGateway.Api.Infrastructure.Services.FraudService;
-using PaymentGateway.Api.Infrastructure.Services.FraudService.Requests;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.AcquiringBank;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.Fraud;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.Idempotency;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.PaymentValidation;
 using PaymentGateway.Api.Infrastructure.Services.IdempotencyService;
 
 namespace PaymentGateway.Api.Application.Features.Payments.ProcessPayment;
@@ -15,10 +15,11 @@ namespace PaymentGateway.Api.Application.Features.Payments.ProcessPayment;
 public sealed class ProcessPaymentHandler(
     IPaymentRepository paymentsRepository,
     IUnitOfWork unitOfWork,
-    IProcessPaymentCommandValidator validator,
-    IIdempotencyService idempotencyService,
-    IFraudServiceClient fraudServiceClient,
-    IAcquiringBankClient acquiringBankClient,
+    IPaymentValidationHandler paymentValidationHandler,
+    IIdempotencyCheckHandler idempotencyCheckHandler,
+    IIdempotencyUpdateHandler idempotencyUpdateHandler,
+    IFraudCheckHandler fraudCheckHandler,
+    IAcquiringBankAuthorizeHandler acquiringBankAuthorizeHandler,
     ILogger<ProcessPaymentHandler> logger)
     : ICommandHandler<ProcessPaymentCommand, PaymentOperationResultDto>
 {
@@ -30,7 +31,7 @@ public sealed class ProcessPaymentHandler(
     {
         var context = new ProcessPaymentExecutionContext(command);
 
-        ValidateRequest(context);
+        await ValidatePaymentRequest(context, cancellationToken);
 
         if (!context.CanContinue)
             return context.Result;
@@ -67,7 +68,7 @@ public sealed class ProcessPaymentHandler(
         ProcessPaymentExecutionContext context,
         CancellationToken cancellationToken)
     {
-        CheckIdempotency(context);
+        await CheckIdempotency(context, cancellationToken);
 
         if (!context.CanContinue)
         {
@@ -115,9 +116,9 @@ public sealed class ProcessPaymentHandler(
         await CaptureAndPersistPayment(context, cancellationToken);
     }
 
-    private void ValidateRequest(ProcessPaymentExecutionContext context)
+    private async Task ValidatePaymentRequest(ProcessPaymentExecutionContext context, CancellationToken cancellationToken)
     {
-        var validationErrors = validator.Validate(context.Command);
+        var validationErrors = await paymentValidationHandler.HandleAsync(context.Command, cancellationToken);
 
         if (validationErrors.Count == 0)
             return;
@@ -131,16 +132,13 @@ public sealed class ProcessPaymentHandler(
             PaymentFailureFactory.InvalidPaymentRequest(validationErrors));
     }
 
-    private void CheckIdempotency(ProcessPaymentExecutionContext context)
+    private async Task CheckIdempotency(ProcessPaymentExecutionContext context, CancellationToken cancellationToken)
     {
-        var idempotencyKey = context.Command.IdempotencyKey;
+        var idempotencyKey = context.Command.IdempotencyKey!;
 
-        if (string.IsNullOrWhiteSpace(idempotencyKey))
-            return;
-
-        var idempotencyResult = idempotencyService.TryAdd(
-            idempotencyKey,
-            context.RequestHash);
+        var idempotencyResult = await idempotencyCheckHandler.HandleAsync(
+            new IdempotencyCheckCommand(idempotencyKey, context.RequestHash),
+            cancellationToken);
 
         switch (idempotencyResult.Status)
         {
@@ -188,8 +186,8 @@ public sealed class ProcessPaymentHandler(
     {
         try
         {
-            var response = await fraudServiceClient.CheckAsync(
-                new FraudCheckRequest(context.Command.CardNumber),
+            var response = await fraudCheckHandler.HandleAsync(
+                new FraudCheckCommand(context.Command.CardNumber),
                 cancellationToken);
 
             if (response is null || !response.Authorized)
@@ -223,43 +221,27 @@ public sealed class ProcessPaymentHandler(
         ProcessPaymentExecutionContext context,
         CancellationToken cancellationToken)
     {
-        try
+        var bankResponse = await acquiringBankAuthorizeHandler.HandleAsync(
+            new AcquiringBankAuthorizeCommand(
+                CardNumber: context.Command.CardNumber,
+                ExpiryMonth: context.Command.ExpiryMonth,
+                ExpiryYear: context.Command.ExpiryYear,
+                Currency: context.Command.Currency,
+                Amount: context.Command.Amount,
+                Cvv: context.Command.Cvv),
+            cancellationToken);
+
+        if (!bankResponse.Authorized)
         {
-            var bankResponse = await acquiringBankClient.ProcessAsync(
-                CreateBankPaymentRequest(context.Command),
-                cancellationToken);
-
-            if (bankResponse is null)
-            {
-                context.StopExecution(
-                    PaymentOperationOutcome.BadRequest,
-                    PaymentFailureFactory.AcquiringBankRejected());
-                return;
-            }
-
-            if (!bankResponse.Authorized)
-            {
-                context.StopExecution(
-                    PaymentOperationOutcome.BadRequest,
-                    PaymentFailureFactory.AcquiringBankDeclined());
-                return;
-            }
-
-            context.Payment!.MarkAsAuthorized("acquiring_bank", bankResponse.AuthorizationCode!);
-
-            context.ContinueExecution(PaymentOperationOutcome.Ok);
-        }
-        catch (Exception ex) when (PaymentServiceExceptionHandler.IsServiceUnavailable(ex))
-        {
-            logger.LogError(
-                ex,
-                "Acquiring bank call failed. ExceptionType: {ExceptionType}",
-                ex.GetType().FullName);
-
             context.StopExecution(
-                PaymentOperationOutcome.ServiceUnavailable,
-                PaymentFailureFactory.BankUnavailable());
+                PaymentOperationOutcome.BadRequest,
+                bankResponse.Error!);
+            return;
         }
+
+        context.Payment!.MarkAsAuthorized("acquiring_bank", bankResponse.AuthorizationCode!);
+
+        context.ContinueExecution(PaymentOperationOutcome.Ok);
     }
 
     private async Task CaptureAndPersistPayment(ProcessPaymentExecutionContext context, CancellationToken cancellationToken)
@@ -274,7 +256,7 @@ public sealed class ProcessPaymentHandler(
 
             var paymentDto = context.Payment.ToDto();
 
-            UpdateIdempotencyStoreIfRequired(context, paymentDto);
+            await UpdateIdempotencyStoreIfRequired(context, paymentDto, cancellationToken);
 
             logger.LogInformation(
                 "Payment {PaymentId} processed with status {Status}.",
@@ -300,19 +282,21 @@ public sealed class ProcessPaymentHandler(
         }
     }
 
-    private void UpdateIdempotencyStoreIfRequired(
+    private async Task UpdateIdempotencyStoreIfRequired(
         ProcessPaymentExecutionContext context,
-        PaymentDto paymentDto)
+        PaymentDto paymentDto,
+        CancellationToken cancellationToken)
     {
         var idempotencyKey = context.Command.IdempotencyKey;
 
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             return;
 
-        var result = idempotencyService.TryUpdate(
-            paymentDto,
-            idempotencyKey,
-            context.RequestHash);
+        var result = await idempotencyUpdateHandler.HandleAsync(new IdempotencyUpdateCommand(
+                context.Command.IdempotencyKey!,
+                context.RequestHash,
+                paymentDto),
+            cancellationToken);
 
         if (result.Status == IdempotencyStatus.Updated)
             return;
@@ -324,15 +308,7 @@ public sealed class ProcessPaymentHandler(
             idempotencyKey);
     }
 
-    private static BankPaymentRequest CreateBankPaymentRequest(ProcessPaymentCommand command)
-    {
-        return new BankPaymentRequest(
-            CardNumber: command.CardNumber,
-            ExpiryDate: $"{command.ExpiryMonth:00}/{command.ExpiryYear}",
-            Cvv: command.Cvv,
-            Amount: command.Amount!.Value,
-            Currency: command.Currency.ToUpperInvariant());
-    }
+
 
     private static string GetLastFourDigits(string cardNumber)
     {

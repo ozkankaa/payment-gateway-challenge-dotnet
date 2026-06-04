@@ -26,7 +26,8 @@ public static class WebApplicationExtensions
             app.UseSwaggerUI(options =>
             {
                 options.SwaggerEndpoint("/swagger/v1/swagger.json", "Payment Gateway API v1");
-                options.SwaggerEndpoint("/swagger/v2/swagger.json", "Payment Gateway API v2 - Saga");
+                options.SwaggerEndpoint("/swagger/v2/swagger.json", "Payment Gateway API v2 - Saga - Async");
+                options.SwaggerEndpoint("/swagger/v3/swagger.json", "Payment Gateway API v3 - Saga - Sync");
                 options.RoutePrefix = "swagger";
             });
         }

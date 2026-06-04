@@ -53,7 +53,7 @@ public static class RabbitMqDiagnostics
         {
             byte[] bytes => Encoding.UTF8.GetString(bytes),
             string text => text,
-            _ => value.ToString()
+            _ => value!.ToString()
         };
     }
 }

@@ -18,6 +18,10 @@ using PaymentGateway.Api.Application.Features.Payments.Dtos;
 using PaymentGateway.Api.Application.Features.Payments.GetPayment;
 using PaymentGateway.Api.Application.Features.Payments.IntegrationEvents;
 using PaymentGateway.Api.Application.Features.Payments.ProcessPayment;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.AcquiringBank;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.Fraud;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.Idempotency;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.PaymentValidation;
 using PaymentGateway.Api.Domain.Events.PaymentCaptured;
 using PaymentGateway.Api.Filters;
 using PaymentGateway.Api.Infrastructure;
@@ -32,8 +36,10 @@ using PaymentGateway.Api.Infrastructure.Services.IdempotencyService;
 using PaymentGateway.Api.Middleware;
 using PaymentGateway.Api.Models.Responses;
 using PaymentGateway.Api.Options;
-using PaymentGateway.Api.Saga;
-using PaymentGateway.Api.Saga.Consumers;
+using PaymentGateway.Api.Saga.Event;
+using PaymentGateway.Api.Saga.Event.Consumers;
+using PaymentGateway.Api.Saga.Request;
+using PaymentGateway.Api.Saga.Request.Handlers;
 
 namespace PaymentGateway.Api.Extensions;
 
@@ -140,8 +146,15 @@ public static class ServiceBuilderExtensions
 
             options.SwaggerDoc("v2", new OpenApiInfo
             {
-                Title = "Payment Gateway API",
+                Title = "Payment Gateway API - Saga - Async",
                 Version = "v2",
+                Description = "Processes and retrieves card payments."
+            });
+
+            options.SwaggerDoc("v3", new OpenApiInfo
+            {
+                Title = "Payment Gateway API - Saga - Sync",
+                Version = "v3",
                 Description = "Processes and retrieves card payments."
             });
 
@@ -234,6 +247,25 @@ public static class ServiceBuilderExtensions
         services.AddScoped<IIntegrationEventHandler, IntegrationEventHandler>();
         services.AddScoped<IntegrationEventHandler>();
 
+        services.AddScoped<ICommandHandler<ProcessPaymentCommand, IDictionary<string, string[]>>, PaymentValidationHandler>();
+        services.AddScoped<IPaymentValidationHandler, PaymentValidationHandler>();
+        services.AddScoped<PaymentValidationHandler>();
+
+        services.AddScoped<ICommandHandler<IdempotencyCheckCommand, IdempotencyResult>, IdempotencyCheckHandler>();
+        services.AddScoped<IIdempotencyCheckHandler, IdempotencyCheckHandler>();
+        services.AddScoped<IdempotencyCheckHandler>();
+
+        services.AddScoped<ICommandHandler<IdempotencyUpdateCommand, IdempotencyResult>, IdempotencyUpdateHandler>();
+        services.AddScoped<IIdempotencyUpdateHandler, IdempotencyUpdateHandler>();
+        services.AddScoped<IdempotencyUpdateHandler>();
+
+        services.AddScoped<ICommandHandler<FraudCheckCommand, FraudCheckResult>, FraudCheckHandler>();
+        services.AddScoped<IFraudCheckHandler, FraudCheckHandler>();
+        services.AddScoped<FraudCheckHandler>();
+
+        services.AddScoped<ICommandHandler<AcquiringBankAuthorizeCommand, AcquiringBankAuthorizeResult>, AcquiringBankAuthorizeHandler>();
+        services.AddScoped<IAcquiringBankAuthorizeHandler, AcquiringBankAuthorizeHandler>();
+        services.AddScoped<AcquiringBankAuthorizeHandler>();
 
         services.AddHttplients(configuration);
 
@@ -248,7 +280,7 @@ public static class ServiceBuilderExtensions
 
     public static IServiceCollection AddSaga(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDbContext<PaymentSagaDbContext>(options =>
+        services.AddDbContext<PaymentEventDbContext>(options =>
         {
             options.UseSqlite(
                 configuration.GetConnectionString("PaymentSagaDb"),
@@ -261,26 +293,33 @@ public static class ServiceBuilderExtensions
         {
             x.SetKebabCaseEndpointNameFormatter();
 
-            x.AddSagaStateMachine<PaymentSagaStateMachine, PaymentSagaState>()
-                .EntityFrameworkRepository(r =>
+            x.AddSagaStateMachine<PaymentRequestStateMachine, PaymentRequestState>()
+            .InMemoryRepository();
+
+            x.AddSagaStateMachine<PaymentEventStateMachine, PaymentEventState>()
+            .EntityFrameworkRepository(r =>
+            {
+                r.ConcurrencyMode = ConcurrencyMode.Optimistic;
+
+                r.AddDbContext<DbContext, PaymentEventDbContext>((provider, options) =>
                 {
-                    r.ConcurrencyMode = ConcurrencyMode.Optimistic;
-
-                    r.AddDbContext<DbContext, PaymentSagaDbContext>((provider, options) =>
-                    {
-                        options.UseSqlite(configuration.GetConnectionString("PaymentSagaDb"));
-                    });
-
-                    r.UseSqlite();
+                    options.UseSqlite(configuration.GetConnectionString("PaymentSagaDb"));
                 });
 
-            x.AddConsumer<StartPaymentDebugConsumer>();
+                r.UseSqlite();
+            });
 
-            x.AddConsumer<ValidatePaymentConsumer>();
-            x.AddConsumer<CheckIdempotencyConsumer>();
-            x.AddConsumer<CheckFraudConsumer>();
-            x.AddConsumer<AuthorizePaymentConsumer>();
-            x.AddConsumer<CapturePaymentConsumer>();
+            x.AddConsumer<ValidatePaymentEventConsumer>();
+            x.AddConsumer<CheckIdempotencyEventConsumer>();
+            x.AddConsumer<CheckFraudEventConsumer>();
+            x.AddConsumer<AuthorizePaymentEventConsumer>();
+            x.AddConsumer<CapturePaymentEventConsumer>();
+
+            x.AddConsumer<ValidatePaymentRequestHandler>();
+            x.AddConsumer<CheckIdempotencyRequestHandler>();
+            x.AddConsumer<CheckFraudRequestHandler>();
+            x.AddConsumer<AuthorizePaymentRequestHandler>();
+            x.AddConsumer<CapturePaymentRequestHandler>();
 
             //x.AddEntityFrameworkOutbox<PaymentSagaDbContext>(o =>
             //{
@@ -299,9 +338,14 @@ public static class ServiceBuilderExtensions
                     h.Password(rabbitOptions.Password);
                 });
 
-                cfg.ReceiveEndpoint("payment-saga", e =>
+                cfg.ReceiveEndpoint("payment-event", e =>
                 {
-                    e.ConfigureSaga<PaymentSagaState>(context);
+                    e.ConfigureSaga<PaymentEventState>(context);
+                });
+
+                cfg.ReceiveEndpoint("payment-request", e =>
+                {
+                    e.ConfigureSaga<PaymentRequestState>(context);
                 });
 
                 // SQLite is not ideal for pessimistic locking (unblock this when use Postgres or SQL Server), but we can still use message retry for transient exceptions like deadlocks or connection issues.

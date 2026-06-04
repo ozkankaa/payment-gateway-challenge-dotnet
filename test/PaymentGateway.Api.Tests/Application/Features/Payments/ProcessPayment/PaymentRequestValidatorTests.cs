@@ -1,4 +1,5 @@
 ﻿using PaymentGateway.Api.Application.Features.Payments.ProcessPayment;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.PaymentValidation;
 
 namespace PaymentGateway.Api.Tests.Application.Features.Payments.ProcessPayment;
 
