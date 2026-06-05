@@ -11,19 +11,16 @@ env:
 
 jobs:
   build-and-test:
-    name: Build and test
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Restore dependencies
+      - name: Restore
         run: dotnet restore
 
       - name: Build
@@ -36,33 +33,26 @@ jobs:
 
       - name: Wait for integration services
         run: |
-          echo "Waiting for RabbitMQ..."
-          timeout 90 bash -c 'until curl -fsS http://localhost:15672 > /dev/null; do sleep 3; done'
+          echo "Waiting for bank simulator API..."
+          timeout 90 bash -c 'until curl -fsS http://localhost:8080 > /dev/null; do sleep 3; done'
 
-          echo "Waiting for bank simulator..."
-          timeout 90 bash -c 'until curl -fsS http://localhost:2525 > /dev/null; do sleep 3; done'
+          echo "Waiting for fraud simulator API..."
+          timeout 90 bash -c 'until curl -fsS http://localhost:8086 > /dev/null; do sleep 3; done'
 
-          echo "Waiting for fraud simulator..."
-          timeout 90 bash -c 'until curl -fsS http://localhost:2526 > /dev/null; do sleep 3; done'
+          echo "Waiting for RabbitMQ AMQP port..."
+          timeout 90 bash -c 'until nc -z localhost 5672; do sleep 3; done'
 
       - name: Run tests
         env:
           ASPNETCORE_ENVIRONMENT: Development
-          ConnectionStrings__PaymentDb: Data Source=payment-gateway.db
-          ConnectionStrings__PaymentSagaDb: Data Source=payment-event.db
           RabbitMq__HostName: localhost
           RabbitMq__Port: "5672"
           RabbitMq__UserName: guest
           RabbitMq__Password: guest
           RabbitMq__VirtualHost: /
-          RabbitMq__ExchangeName: payment-integration-events
-          RabbitMq__QueueName: payment-integration-events-queue
-          RabbitMq__RoutingKey: payment.integration-event
-          RabbitMq__PrefetchCount: "10"
           AcquiringBank__BaseUrl: http://localhost:8080
           FraudService__BaseUrl: http://localhost:8086
           Service__OpenTelemetry__OtlpEndpoint: http://localhost:4318
-          Serilog__WriteTo__1__Args__endpoint: http://localhost:4318/v1/logs
         run: dotnet test --configuration Release --no-build --verbosity normal
 
       - name: Show docker logs on failure
