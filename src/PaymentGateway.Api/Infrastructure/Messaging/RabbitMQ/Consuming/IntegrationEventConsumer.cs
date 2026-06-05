@@ -22,7 +22,7 @@ public sealed class IntegrationEventConsumer(
     private IConnection? _connection;
     private IChannel? _channel;
 
-    private static readonly ActivitySource _activitySource = new("PaymentGateway.Api");
+    private static readonly ActivitySource ActivitySource = new("PaymentGateway.Api");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -44,7 +44,7 @@ public sealed class IntegrationEventConsumer(
                 ?? eventArgs.BasicProperties.MessageId
                 ?? Guid.NewGuid().ToString();
 
-            using var activity = _activitySource.StartActivity(
+            using var activity = ActivitySource.StartActivity(
             "Process Integration Event",
             ActivityKind.Consumer,
             parentId:traceParent);

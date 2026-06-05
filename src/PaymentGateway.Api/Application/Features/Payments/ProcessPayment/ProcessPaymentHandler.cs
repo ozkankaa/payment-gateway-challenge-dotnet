@@ -192,9 +192,17 @@ public sealed class ProcessPaymentHandler(
 
             if (response is null || !response.Authorized)
             {
+                if (response is not null && !response.Authorized && response?.Error?.Code == "fraud_service_unavailable")
+                {
+                    context.StopExecution(
+                        PaymentOperationOutcome.ServiceUnavailable,
+                        PaymentFailureFactory.FraudServiceUnavailable());
+                    return;
+                }
+
                 context.StopExecution(
-                    PaymentOperationOutcome.BadRequest,
-                    PaymentFailureFactory.PaymentDeclinedByFraudService());
+                PaymentOperationOutcome.BadRequest,
+                PaymentFailureFactory.PaymentDeclinedByFraudService());
                 return;
             }
 
@@ -233,6 +241,13 @@ public sealed class ProcessPaymentHandler(
 
         if (!bankResponse.Authorized)
         {
+            if (bankResponse.Error?.Code == "bank_unavailable")
+            {
+                context.StopExecution(
+                    PaymentOperationOutcome.ServiceUnavailable,
+                    bankResponse.Error!);
+                return;
+            }
             context.StopExecution(
                 PaymentOperationOutcome.BadRequest,
                 bankResponse.Error!);
@@ -312,10 +327,9 @@ public sealed class ProcessPaymentHandler(
 
     private static string GetLastFourDigits(string cardNumber)
     {
-        if (string.IsNullOrWhiteSpace(cardNumber))
-            return string.Empty;
-
-        return cardNumber.Length <= 4
+        return string.IsNullOrWhiteSpace(cardNumber)
+            ? string.Empty
+            : cardNumber.Length <= 4
             ? cardNumber
             : cardNumber[^4..];
     }

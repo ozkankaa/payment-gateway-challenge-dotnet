@@ -5,7 +5,6 @@ using Moq;
 using PaymentGateway.Api.Application.Abstractions.Persistence;
 using PaymentGateway.Api.Application.Features.Payments.Dtos;
 using PaymentGateway.Api.Application.Features.Payments.GetPayment;
-using PaymentGateway.Api.Domain.Entities;
 using PaymentGateway.Api.Domain.Entities.Payments;
 
 namespace PaymentGateway.Api.Tests.Application.Features.Payments.GetPayment;

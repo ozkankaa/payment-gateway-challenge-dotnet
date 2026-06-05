@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  DOTNET_VERSION: "8.0.x"
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Start integration services
+        run: docker compose -f docker-compose.integration.yml up -d
+
+      - name: Wait for integration services
+        run: |
+          docker compose -f docker-compose.integration.yml ps
+
+          echo "Waiting for RabbitMQ..."
+          timeout 60 bash -c 'until docker exec payment-rabbitmq rabbitmq-diagnostics check_running; do sleep 2; done'
+
+          echo "Waiting for bank simulator..."
+          timeout 60 bash -c 'until curl -fsS http://localhost:2525; do sleep 2; done'
+
+          echo "Waiting for fraud simulator..."
+          timeout 60 bash -c 'until curl -fsS http://localhost:2526; do sleep 2; done'
+
+      - name: Run tests
+        env:
+          RabbitMq__HostName: localhost
+          RabbitMq__Port: "5672"
+          RabbitMq__UserName: guest
+          RabbitMq__Password: guest
+          RabbitMq__VirtualHost: /
+          AcquiringBank__BaseUrl: http://localhost:8080
+          FraudService__BaseUrl: http://localhost:8086
+          Service__OpenTelemetry__OtlpEndpoint: http://localhost:4318
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+      - name: Stop integration services
+        if: always()
+        run: docker compose -f docker-compose.integration.yml down -v

@@ -1,335 +1,312 @@
-﻿//using Microsoft.Extensions.Logging;
-
-//using Moq;
-
-//using PaymentGateway.Api.Application.Abstractions.Persistence;
-//using PaymentGateway.Api.Application.Features.Payments.Dtos;
-//using PaymentGateway.Api.Application.Features.Payments.ProcessPayment;
-//using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.PaymentValidation;
-//using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService;
-//using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService.Requests;
-//using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService.Responses;
-//using PaymentGateway.Api.Infrastructure.Services.FraudService;
-//using PaymentGateway.Api.Infrastructure.Services.FraudService.Requests;
-//using PaymentGateway.Api.Infrastructure.Services.FraudService.Responses;
-//using PaymentGateway.Api.Infrastructure.Services.IdempotencyService;
-
-//namespace PaymentGateway.Api.Tests.Application.Features.Payments.ProcessPayment;
-
-//public sealed class ProcessPaymentHandlerTests
-//{
-//    private readonly Mock<IPaymentRepository> _paymentsRepository = new();
-//    private readonly Mock<IUnitOfWork> _unitOfWork = new();
-//    private readonly Mock<IProcessPaymentCommandValidator> _validator = new();
-//    private readonly Mock<IIdempotencyService> _idempotencyService = new();
-//    private readonly Mock<IFraudServiceClient> _fraudServiceClient = new();
-//    private readonly Mock<IAcquiringBankClient> _acquiringBankClient = new();
-//    private readonly Mock<ILogger<ProcessPaymentHandler>> _logger = new();
-
-//    private readonly ProcessPaymentHandler _processPaymentHandler;
-
-//    public ProcessPaymentHandlerTests()
-//    {
-//        _processPaymentHandler = new ProcessPaymentHandler(
-//            _paymentsRepository.Object,
-//            _unitOfWork.Object,
-//            _validator.Object,
-//            _idempotencyService.Object,
-//            _fraudServiceClient.Object,
-//            _acquiringBankClient.Object,
-//            _logger.Object);
-
-//        _validator
-//            .Setup(x => x.Validate(It.IsAny<ProcessPaymentCommand>()))
-//            .Returns(new Dictionary<string, string[]>());
-
-//        _idempotencyService
-//            .Setup(x => x.TryAdd(It.IsAny<string>(), It.IsAny<string>()))
-//            .Returns(new IdempotencyResult(IdempotencyStatus.Added));
-
-//        _idempotencyService
-//            .Setup(x => x.TryUpdate(
-//                It.IsAny<PaymentDto>(),
-//                It.IsAny<string>(),
-//                It.IsAny<string>()))
-//            .Returns(new IdempotencyResult(IdempotencyStatus.Updated));
-
-//        _fraudServiceClient
-//            .Setup(x => x.CheckAsync(
-//                It.IsAny<FraudCheckRequest>(),
-//                It.IsAny<CancellationToken>()))
-//            .ReturnsAsync(new FraudCheckResponse(Authorized: true, AuthorizationCode:Guid.NewGuid().ToString()));
-
-//        _acquiringBankClient
-//            .Setup(x => x.ProcessAsync(
-//                It.IsAny<BankPaymentRequest>(),
-//                It.IsAny<CancellationToken>()))
-//            .ReturnsAsync(new BankPaymentResponse(true, "AUTH-123"));
-
-//        _unitOfWork
-//            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
-//            .ReturnsAsync(1);
-//    }
-
-//    [Fact]
-//    public async Task HandleAsync_WhenCommandIsValid_ShouldCreatePayment()
-//    {
-//        var command = CreateValidCommand();
-
-//        var result = await _processPaymentHandler.HandleAsync(command, CancellationToken.None);
-
-//        Assert.Equal(PaymentOperationOutcome.Created, result.Outcome);
-//        Assert.NotNull(result.Payment);
-//        Assert.Null(result.Error);
-
-//        _paymentsRepository.Verify(
-//            x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()),
-//            Times.Once);
-
-//        _unitOfWork.Verify(
-//            x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
-//            Times.Once);
-
-//        _idempotencyService.Verify(
-//            x => x.TryUpdate(It.IsAny<PaymentDto>(), command.IdempotencyKey!, It.IsAny<string>()),
-//            Times.Once);
-//    }
-
-//    [Fact]
-//    public async Task HandleAsync_WhenValidationFails_ShouldReturnBadRequestAndStop()
-//    {
-//        var command = CreateValidCommand();
-
-//        _validator
-//            .Setup(x => x.Validate(command))
-//            .Returns(new Dictionary<string, string[]>
-//            {
-//                ["Amount"] = ["Amount is required."]
-//            });
-
-//        var result = await _processPaymentHandler.HandleAsync(command, CancellationToken.None);
-
-//        Assert.Equal(PaymentOperationOutcome.BadRequest, result.Outcome);
-//        Assert.Equal("payment_rejected", result.Error!.Code);
-
-//        _fraudServiceClient.Verify(
-//            x => x.CheckAsync(It.IsAny<FraudCheckRequest>(), It.IsAny<CancellationToken>()),
-//            Times.Never);
-
-//        _paymentsRepository.Verify(
-//            x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()),
-//            Times.Never);
-//    }
-
-//    [Fact]
-//    public async Task HandleAsync_WhenIdempotencyConflict_ShouldReturnConflict()
-//    {
-//        var command = CreateValidCommand();
-
-//        _idempotencyService
-//            .Setup(x => x.TryAdd(command.IdempotencyKey!, It.IsAny<string>()))
-//            .Returns(new IdempotencyResult(IdempotencyStatus.Conflict));
-
-//        var result = await _processPaymentHandler.HandleAsync(command, CancellationToken.None);
-
-//        Assert.Equal(PaymentOperationOutcome.Conflict, result.Outcome);
-//        Assert.Equal("idempotency_conflict", result.Error!.Code);
-
-//        _fraudServiceClient.Verify(
-//            x => x.CheckAsync(It.IsAny<FraudCheckRequest>(), It.IsAny<CancellationToken>()),
-//            Times.Never);
-//    }
-
-//    [Fact]
-//    public async Task HandleAsync_WhenDuplicateIdempotencyHasPayment_ShouldReturnExistingPayment()
-//    {
-//        var command = CreateValidCommand();
-
-//        var existingPayment = new PaymentDto()
-//        {
-//            Id = Guid.NewGuid(),
-//            Amount = command.Amount!.Value,
-//            Currency = command.Currency
-//        };
-
-//        _idempotencyService
-//            .Setup(x => x.TryAdd(command.IdempotencyKey!, It.IsAny<string>()))
-//            .Returns(new IdempotencyResult(
-//                IdempotencyStatus.Duplicate,
-//                Payment: existingPayment));
-
-//        var result = await _processPaymentHandler.HandleAsync(command, CancellationToken.None);
-
-//        Assert.Equal(PaymentOperationOutcome.Ok, result.Outcome);
-//        Assert.Same(existingPayment, result.Payment);
-
-//        _fraudServiceClient.Verify(
-//            x => x.CheckAsync(It.IsAny<FraudCheckRequest>(), It.IsAny<CancellationToken>()),
-//            Times.Never);
-
-//        _paymentsRepository.Verify(
-//            x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()),
-//            Times.Never);
-//    }
-
-//    [Fact]
-//    public async Task HandleAsync_WhenFraudServiceDeclines_ShouldReturnBadRequest()
-//    {
-//        var command = CreateValidCommand();
-
-//        _fraudServiceClient
-//            .Setup(x => x.CheckAsync(
-//                It.IsAny<FraudCheckRequest>(),
-//                It.IsAny<CancellationToken>()))
-//            .ReturnsAsync(new FraudCheckResponse(AuthorizationCode: null, Authorized: false));
-
-//        var result = await _processPaymentHandler.HandleAsync(command, CancellationToken.None);
-
-//        Assert.Equal(PaymentOperationOutcome.BadRequest, result.Outcome);
-//        Assert.Equal("payment_declined", result.Error!.Code);
-
-//        _acquiringBankClient.Verify(
-//            x => x.ProcessAsync(It.IsAny<BankPaymentRequest>(), It.IsAny<CancellationToken>()),
-//            Times.Never);
-
-//        _paymentsRepository.Verify(
-//            x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()),
-//            Times.Never);
-//    }
-
-//    [Fact]
-//    public async Task HandleAsync_WhenFraudServiceReturnsNull_ShouldReturnBadRequest()
-//    {
-//        var command = CreateValidCommand();
-
-//        _fraudServiceClient
-//            .Setup(x => x.CheckAsync(
-//                It.IsAny<FraudCheckRequest>(),
-//                It.IsAny<CancellationToken>()))
-//            .ReturnsAsync((FraudCheckResponse?)null);
-
-//        var result = await _processPaymentHandler.HandleAsync(command, CancellationToken.None);
-
-//        Assert.Equal(PaymentOperationOutcome.BadRequest, result.Outcome);
-//        Assert.Equal("payment_declined", result.Error!.Code);
-//    }
-
-//    [Fact]
-//    public async Task HandleAsync_WhenBankReturnsNull_ShouldReturnBadRequest()
-//    {
-//        var command = CreateValidCommand();
-
-//        _acquiringBankClient
-//            .Setup(x => x.ProcessAsync(
-//                It.IsAny<BankPaymentRequest>(),
-//                It.IsAny<CancellationToken>()))
-//            .ReturnsAsync((BankPaymentResponse?)null);
-
-//        var result = await _processPaymentHandler.HandleAsync(command, CancellationToken.None);
-
-//        Assert.Equal(PaymentOperationOutcome.BadRequest, result.Outcome);
-//        Assert.Equal("payment_rejected", result.Error!.Code);
-
-//        _paymentsRepository.Verify(
-//            x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()),
-//            Times.Never);
-//    }
-
-//    [Fact]
-//    public async Task HandleAsync_WhenBankDeclines_ShouldReturnBadRequest()
-//    {
-//        var command = CreateValidCommand();
-
-//        _acquiringBankClient
-//            .Setup(x => x.ProcessAsync(
-//                It.IsAny<BankPaymentRequest>(),
-//                It.IsAny<CancellationToken>()))
-//            .ReturnsAsync(new BankPaymentResponse(false, null));
-
-//        var result = await _processPaymentHandler.HandleAsync(command, CancellationToken.None);
-
-//        Assert.Equal(PaymentOperationOutcome.BadRequest, result.Outcome);
-//        Assert.Equal("payment_declined", result.Error!.Code);
-
-//        _paymentsRepository.Verify(
-//            x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()),
-//            Times.Never);
-//    }
-
-//    [Fact]
-//    public async Task HandleAsync_WhenPersistenceFails_ShouldReturnServiceUnavailable()
-//    {
-//        var command = CreateValidCommand();
-
-//        _unitOfWork
-//            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
-//            .ThrowsAsync(new Exception("database failure"));
-
-//        var result = await _processPaymentHandler.HandleAsync(command, CancellationToken.None);
-
-//        Assert.Equal(PaymentOperationOutcome.ServiceUnavailable, result.Outcome);
-//        Assert.Equal("payment_failed", result.Error!.Code);
-
-//        _idempotencyService.Verify(
-//            x => x.TryUpdate(It.IsAny<PaymentDto>(), It.IsAny<string>(), It.IsAny<string>()),
-//            Times.Never);
-//    }
-
-//    [Fact]
-//    public async Task HandleAsync_WhenIdempotencyKeyIsNull_ShouldProcessWithoutIdempotencyService()
-//    {
-//        var command = CreateValidCommand(idempotencyKey: null);
-
-//        var result = await _processPaymentHandler.HandleAsync(command, CancellationToken.None);
-
-//        Assert.Equal(PaymentOperationOutcome.Created, result.Outcome);
-
-//        _idempotencyService.Verify(
-//            x => x.TryAdd(It.IsAny<string>(), It.IsAny<string>()),
-//            Times.Never);
-
-//        _idempotencyService.Verify(
-//            x => x.TryUpdate(It.IsAny<PaymentDto>(), It.IsAny<string>(), It.IsAny<string>()),
-//            Times.Never);
-//    }
-
-//    [Fact]
-//    public async Task HandleAsync_ShouldSendUppercaseCurrencyToBank()
-//    {
-//        var command = CreateValidCommand(currency: "gbp");
-
-//        await _processPaymentHandler.HandleAsync(command, CancellationToken.None);
-
-//        _acquiringBankClient.Verify(
-//            x => x.ProcessAsync(
-//                It.Is<BankPaymentRequest>(request =>
-//                    request.Currency == "GBP" &&
-//                    request.ExpiryDate == "12/2030" &&
-//                    request.Amount == command.Amount),
-//                It.IsAny<CancellationToken>()),
-//            Times.Once);
-//    }
-
-//    private static ProcessPaymentCommand CreateValidCommand(
-//        string? idempotencyKey = "idem-key",
-//        Guid? merchantId = null,
-//        string cardNumber = "4242424242424242",
-//        int? expiryMonth = 12,
-//        int? expiryYear = 2030,
-//        string cvv = "123",
-//        long? amount = 100,
-//        string currency = "GBP")
-//    {
-//        return new ProcessPaymentCommand
-//        (
-//            IdempotencyKey : idempotencyKey,
-//            MerchantId : merchantId ?? Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-//            CardNumber : cardNumber,
-//            ExpiryMonth : expiryMonth,
-//            ExpiryYear : expiryYear,
-//            Cvv : cvv,
-//            Amount : amount,
-//            Currency : currency
-//        );
-//    }
-//}
+﻿using FluentAssertions;
+
+using Microsoft.Extensions.Logging;
+
+using Moq;
+
+using PaymentGateway.Api.Application.Abstractions.Persistence;
+using PaymentGateway.Api.Application.Features.Payments.Dtos;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.AcquiringBank;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.Fraud;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.Idempotency;
+using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.PaymentValidation;
+using PaymentGateway.Api.Infrastructure.Services.IdempotencyService;
+
+namespace PaymentGateway.Api.Tests.Application.Features.Payments.ProcessPayment;
+
+public sealed class ProcessPaymentHandlerTests
+{
+    private readonly Mock<IPaymentRepository> _paymentsRepository = new();
+    private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly Mock<IPaymentValidationHandler> _validation = new();
+    private readonly Mock<IIdempotencyCheckHandler> _idempotencyCheck = new();
+    private readonly Mock<IIdempotencyUpdateHandler> _idempotencyUpdate = new();
+    private readonly Mock<IFraudCheckHandler> _fraud = new();
+    private readonly Mock<IAcquiringBankAuthorizeHandler> _bank = new();
+    private readonly Mock<ILogger<ProcessPaymentHandler>> _logger = new();
+
+    private ProcessPaymentHandler Sut() =>
+        new(
+            _paymentsRepository.Object,
+            _unitOfWork.Object,
+            _validation.Object,
+            _idempotencyCheck.Object,
+            _idempotencyUpdate.Object,
+            _fraud.Object,
+            _bank.Object,
+            _logger.Object);
+
+    [Fact]
+    public async Task HandleAsync_WhenValidationFails_ReturnsBadRequest_AndStopsPipeline()
+    {
+        var command = ValidCommand();
+
+        _validation
+            .Setup(x => x.HandleAsync(command, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, string[]>
+            {
+                ["cardNumber"] = ["Card number is required"]
+            });
+
+        var result = await Sut().HandleAsync(command, CancellationToken.None);
+
+        result.Outcome.Should().Be(PaymentOperationOutcome.BadRequest);
+        result.Error.Should().NotBeNull();
+
+        _fraud.Verify(x => x.HandleAsync(It.IsAny<FraudCheckCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+        _bank.Verify(x => x.HandleAsync(It.IsAny<AcquiringBankAuthorizeCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+        _paymentsRepository.Verify(x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenNoIdempotencyKey_AndPaymentSucceeds_ReturnsCreated_AndDoesNotCallIdempotencyServices()
+    {
+        var command = ValidCommand(idempotencyKey: null);
+        SetupValidPaymentFlow();
+
+        var result = await Sut().HandleAsync(command, CancellationToken.None);
+
+        result.Outcome.Should().Be(PaymentOperationOutcome.Created);
+        result.Payment.Should().NotBeNull();
+
+        _idempotencyCheck.Verify(
+            x => x.HandleAsync(It.IsAny<IdempotencyCheckCommand>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        _idempotencyUpdate.Verify(
+            x => x.HandleAsync(It.IsAny<IdempotencyUpdateCommand>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        _paymentsRepository.Verify(x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenIdempotencyConflict_ReturnsConflict_AndDoesNotRunFraudOrBank()
+    {
+        var command = ValidCommand(idempotencyKey: "idem-123");
+
+        _validation.Setup(x => x.HandleAsync(command, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, string[]>());
+
+        _idempotencyCheck
+            .Setup(x => x.HandleAsync(It.IsAny<IdempotencyCheckCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdempotencyResult(Status: IdempotencyStatus.Conflict));
+
+        var result = await Sut().HandleAsync(command, CancellationToken.None);
+
+        result.Outcome.Should().Be(PaymentOperationOutcome.Conflict);
+        result.Error.Should().NotBeNull();
+
+        _fraud.Verify(x => x.HandleAsync(It.IsAny<FraudCheckCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+        _bank.Verify(x => x.HandleAsync(It.IsAny<AcquiringBankAuthorizeCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+        _paymentsRepository.Verify(x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenDuplicateWithStoredPayment_ReturnsOkWithExistingPayment_AndDoesNotCreateNewPayment()
+    {
+        var command = ValidCommand(idempotencyKey: "idem-123");
+        var existingPayment = new PaymentDto { Id = Guid.NewGuid() };
+
+        _validation.Setup(x => x.HandleAsync(command, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, string[]>());
+
+        _idempotencyCheck
+            .Setup(x => x.HandleAsync(It.IsAny<IdempotencyCheckCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdempotencyResult(
+                IdempotencyStatus.Duplicate,
+                existingPayment,
+                 RequestHash: "hash123"));
+
+        var result = await Sut().HandleAsync(command, CancellationToken.None);
+
+        result.Outcome.Should().Be(PaymentOperationOutcome.Ok);
+        result.Payment.Should().Be(existingPayment);
+
+        _fraud.Verify(x => x.HandleAsync(It.IsAny<FraudCheckCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+        _paymentsRepository.Verify(x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenFraudDeclines_ReturnsBadRequest_AndDoesNotCallBankOrPersist()
+    {
+        var command = ValidCommand();
+
+        _validation.Setup(x => x.HandleAsync(command, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, string[]>());
+
+        _fraud
+            .Setup(x => x.HandleAsync(It.IsAny<FraudCheckCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FraudCheckResult() { Authorized= false});
+
+        var result = await Sut().HandleAsync(command, CancellationToken.None);
+
+        result.Outcome.Should().Be(PaymentOperationOutcome.BadRequest);
+        result.Error.Should().NotBeNull();
+
+        _bank.Verify(x => x.HandleAsync(It.IsAny<AcquiringBankAuthorizeCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+        _paymentsRepository.Verify(x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenFraudServiceUnavailable_ReturnsServiceUnavailable()
+    {
+        var command = ValidCommand();
+
+        _validation.Setup(x => x.HandleAsync(command, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, string[]>());
+
+        _fraud
+            .Setup(x => x.HandleAsync(It.IsAny<FraudCheckCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FraudCheckResult() { Authorized = false, Error = new ErrorDto(Code : "fraud_service_unavailable", Message : "Fraud service is unavailable. Try again later.") });
+
+        var result = await Sut().HandleAsync(command, CancellationToken.None);
+
+        result.Outcome.Should().Be(PaymentOperationOutcome.ServiceUnavailable);
+        result.Error.Should().NotBeNull();
+
+        _bank.Verify(x => x.HandleAsync(It.IsAny<AcquiringBankAuthorizeCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+        _paymentsRepository.Verify(x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenBankDeclines_ReturnsBadRequest_AndDoesNotPersist()
+    {
+        var command = ValidCommand();
+
+        _validation.Setup(x => x.HandleAsync(command, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, string[]>());
+
+        _fraud
+            .Setup(x => x.HandleAsync(It.IsAny<FraudCheckCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FraudCheckResult() { Authorized = true });
+
+        _bank
+            .Setup(x => x.HandleAsync(It.IsAny<AcquiringBankAuthorizeCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AcquiringBankAuthorizeResult
+            {
+                Authorized = false,
+                Error = new ErrorDto(Code : "card_declined",Message : "Card declined")
+            });
+
+        var result = await Sut().HandleAsync(command, CancellationToken.None);
+
+        result.Outcome.Should().Be(PaymentOperationOutcome.BadRequest);
+        result.Error!.Code.Should().Be("card_declined");
+
+        _paymentsRepository.Verify(x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenBankUnavailable_ReturnsServiceUnavailable()
+    {
+        var command = ValidCommand();
+
+        _validation.Setup(x => x.HandleAsync(command, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, string[]>());
+
+        _fraud
+            .Setup(x => x.HandleAsync(It.IsAny<FraudCheckCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FraudCheckResult() { Authorized=true});
+
+        _bank
+            .Setup(x => x.HandleAsync(It.IsAny<AcquiringBankAuthorizeCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AcquiringBankAuthorizeResult
+            {
+                Authorized = false,
+                Error = new ErrorDto(
+                    Code : "bank_unavailable",
+                    Message : "Bank unavailable"
+                )
+            });
+
+        var result = await Sut().HandleAsync(command, CancellationToken.None);
+
+        result.Outcome.Should().Be(PaymentOperationOutcome.ServiceUnavailable);
+        result.Error!.Code.Should().Be("bank_unavailable");
+
+        _paymentsRepository.Verify(x => x.AddAsync(It.IsAny<Api.Domain.Entities.Payments.Payment>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenPersistenceFails_ReturnsServiceUnavailable()
+    {
+        var command = ValidCommand();
+        SetupValidPaymentFlow();
+
+        _unitOfWork
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db failure"));
+
+        var result = await Sut().HandleAsync(command, CancellationToken.None);
+
+        result.Outcome.Should().Be(PaymentOperationOutcome.ServiceUnavailable);
+        result.Error.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenIdempotencyKeyExists_AndPaymentSucceeds_UpdatesIdempotencyStore()
+    {
+        var command = ValidCommand(idempotencyKey: "idem-123");
+
+        SetupValidPaymentFlow();
+
+        _idempotencyCheck
+            .Setup(x => x.HandleAsync(It.IsAny<IdempotencyCheckCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdempotencyResult(Status : IdempotencyStatus.Updated));
+
+        _idempotencyUpdate
+            .Setup(x => x.HandleAsync(It.IsAny<IdempotencyUpdateCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdempotencyResult(Status : IdempotencyStatus.Updated));
+
+        var result = await Sut().HandleAsync(command, CancellationToken.None);
+
+        result.Outcome.Should().Be(PaymentOperationOutcome.Created);
+
+        _idempotencyUpdate.Verify(
+            x => x.HandleAsync(
+                It.Is<IdempotencyUpdateCommand>(c => c.IdempotencyKey == "idem-123"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    private void SetupValidPaymentFlow()
+    {
+        _validation
+            .Setup(x => x.HandleAsync(It.IsAny<ProcessPaymentCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, string[]>());
+
+        _fraud
+            .Setup(x => x.HandleAsync(It.IsAny<FraudCheckCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FraudCheckResult { Authorized = true, AuthorizationCode = Guid.NewGuid().ToString() });
+
+        _bank
+            .Setup(x => x.HandleAsync(It.IsAny<AcquiringBankAuthorizeCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AcquiringBankAuthorizeResult
+            {
+                Authorized = true,
+                AuthorizationCode = "auth_123"
+            });
+
+        _unitOfWork
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+    }
+
+    private static ProcessPaymentCommand ValidCommand(string? idempotencyKey = null)
+    {
+        return new ProcessPaymentCommand(
+            MerchantId: Guid.NewGuid(),
+            CardNumber: "4242424242424242",
+            ExpiryMonth: 12,
+            ExpiryYear: 2030,
+            Currency: "GBP",
+            Amount: 1000,
+            Cvv: "123",
+            IdempotencyKey: idempotencyKey);
+    }
+}
