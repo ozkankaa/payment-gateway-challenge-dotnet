@@ -23,7 +23,7 @@ A simple payment gateway API implemented in .NET 8 (C# 12). This project exposes
 - DDD implementation with aggragated payment domain and handling domain events
 - EDD implementation with using RabbitMQ sending messages to external services
 - Using Sqlite database for storing payments and outbox events via EntityFrameworkCore and UnitOfWork implementation and RowVersioning for concurrency
-- Added Azure/AWS/K8S deployment files for Github Actions
+- Added CI file for Github Actions
 
 ## Prerequisites
 
