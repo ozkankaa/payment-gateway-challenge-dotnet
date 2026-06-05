@@ -24,21 +24,19 @@ internal static class HealthCheckExtensions
         return services;
     }
 
-    public static IEndpointConventionBuilder MapHealthChecksEndpoints(this IEndpointRouteBuilder app)
+    public static void MapHealthChecksEndpoints(this IEndpointRouteBuilder app)
     {
-        var live = app.MapHealthChecks("/health/live", new HealthCheckOptions
+        app.MapHealthChecks("/health/live", new HealthCheckOptions
         {
             Predicate = (check) => check.Tags.Contains("live"),
             ResponseWriter = WriteHealthCheckResponse
         });
 
-        var ready = app.MapHealthChecks("/health/ready", new HealthCheckOptions
+        app.MapHealthChecks("/health/ready", new HealthCheckOptions
         {
             Predicate = (check) => check.Tags.Contains("ready"),
             ResponseWriter = WriteHealthCheckResponse
         });
-
-        return live;
     }
 
     private static Task WriteHealthCheckResponse(HttpContext context, HealthReport report)
