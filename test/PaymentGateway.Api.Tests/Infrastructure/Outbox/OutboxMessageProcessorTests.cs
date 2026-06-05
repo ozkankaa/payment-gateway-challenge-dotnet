@@ -54,8 +54,8 @@ public sealed class OutboxMessageProcessorTests : IDisposable
 
         await using (var context = CreateDbContext())
         {
-            await context.OutboxEvents.AddAsync(message);
-            await context.SaveChangesAsync();
+            await context.OutboxEvents.AddAsync(message, TestContext.Current.CancellationToken);
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         // Act
@@ -71,7 +71,7 @@ public sealed class OutboxMessageProcessorTests : IDisposable
         await using var assertContext = CreateDbContext();
 
         var persisted = await assertContext.OutboxEvents
-            .SingleAsync(x => x.Id == message.Id);
+            .SingleAsync(x => x.Id == message.Id, TestContext.Current.CancellationToken);
 
         Assert.NotNull(persisted.ProcessedAtUtc);
         Assert.Null(persisted.Error);
@@ -86,8 +86,8 @@ public sealed class OutboxMessageProcessorTests : IDisposable
 
         await using (var context = CreateDbContext())
         {
-            await context.OutboxEvents.AddAsync(message);
-            await context.SaveChangesAsync();
+            await context.OutboxEvents.AddAsync(message, TestContext.Current.CancellationToken);
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         // Act
@@ -109,8 +109,8 @@ public sealed class OutboxMessageProcessorTests : IDisposable
 
         await using (var context = CreateDbContext())
         {
-            await context.OutboxEvents.AddAsync(message);
-            await context.SaveChangesAsync();
+            await context.OutboxEvents.AddAsync(message, TestContext.Current.CancellationToken);
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         _publisherMock
@@ -125,7 +125,7 @@ public sealed class OutboxMessageProcessorTests : IDisposable
         // Assert
         var persisted = await CreateDbContext()
             .OutboxEvents
-            .SingleAsync(x => x.Id == message.Id);
+            .SingleAsync(x => x.Id == message.Id, TestContext.Current.CancellationToken);
 
         Assert.Null(persisted.ProcessedAtUtc);
         Assert.Contains("Broker unavailable", persisted.Error);
@@ -144,8 +144,8 @@ public sealed class OutboxMessageProcessorTests : IDisposable
 
         await using (var context = CreateDbContext())
         {
-            await context.OutboxEvents.AddRangeAsync(messages);
-            await context.SaveChangesAsync();
+            await context.OutboxEvents.AddRangeAsync(messages, TestContext.Current.CancellationToken);
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         // Act
@@ -161,7 +161,7 @@ public sealed class OutboxMessageProcessorTests : IDisposable
         await using var assertContext = CreateDbContext();
 
         var processedCount = await assertContext.OutboxEvents
-            .CountAsync(x => x.ProcessedAtUtc != null);
+            .CountAsync(x => x.ProcessedAtUtc != null, TestContext.Current.CancellationToken);
 
         Assert.Equal(20, processedCount);
     }
@@ -179,7 +179,7 @@ public sealed class OutboxMessageProcessorTests : IDisposable
         await using (var context = CreateDbContext())
         {
             await context.OutboxEvents.AddRangeAsync(latest, earliest, middle);
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var publishedIds = new List<Guid>();

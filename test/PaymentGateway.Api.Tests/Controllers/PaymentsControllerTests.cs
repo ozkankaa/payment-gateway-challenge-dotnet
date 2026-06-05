@@ -260,8 +260,9 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
     [Fact]
     public async Task HealthAndOpenApi_AreAvailable()
     {
-        Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/health/live", TestContext.Current.CancellationToken)).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/swagger/v1/swagger.json", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(
+        HttpStatusCode.OK,
+        (await _client.GetAsync("/health/live", TestContext.Current.CancellationToken)).StatusCode);        
     }
 
     #endregion

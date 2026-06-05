@@ -11,6 +11,8 @@ public class PaymentGatewayFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.UseEnvironment("Testing");
+
         builder.ConfigureServices(services =>
         {
             var acquiringBankClientDescriptor = services.SingleOrDefault(s => s.ServiceType == typeof(IAcquiringBankClient));
