@@ -18,6 +18,7 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
     public PaymentsControllerTests(PaymentGatewayFactory factory)
     {
         _client = factory.CreateClient();
+        FakeAcquiringBankClient.Reset();
     }
 
     #region PostPaymentAsync
