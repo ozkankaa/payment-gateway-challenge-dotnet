@@ -50,7 +50,7 @@ jobs:
           FraudService__BaseUrl: http://localhost:8086
           Service__OpenTelemetry__OtlpEndpoint: http://localhost:4318
           Serilog__WriteTo__1__Args__endpoint: http://localhost:4318/v1/logs
-        run: dotnet test --configuration Release --no-build --verbosity normal
+        run: dotnet test test/PaymentGateway.Api.Tests/PaymentGateway.Api.Tests.csproj --configuration Release --no-build --logger "console;verbosity=detailed"
 
       - name: Show docker logs on failure
         if: failure()
