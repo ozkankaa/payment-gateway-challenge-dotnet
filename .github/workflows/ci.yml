@@ -33,14 +33,10 @@ jobs:
 
       - name: Wait for integration services
         run: |
-          echo "Waiting for bank simulator API..."
-          timeout 90 bash -c 'until curl -fsS http://localhost:8080 > /dev/null; do sleep 3; done'
-
-          echo "Waiting for fraud simulator API..."
-          timeout 90 bash -c 'until curl -fsS http://localhost:8086 > /dev/null; do sleep 3; done'
-
-          echo "Waiting for RabbitMQ AMQP port..."
-          timeout 90 bash -c 'until nc -z localhost 5672; do sleep 3; done'
+          timeout 90 bash -c 'until nc -z localhost 8080; do sleep 2; done'
+          timeout 90 bash -c 'until nc -z localhost 8086; do sleep 2; done'
+          timeout 90 bash -c 'until nc -z localhost 5672; do sleep 2; done'
+          timeout 90 bash -c 'until nc -z localhost 4318; do sleep 2; done'
 
       - name: Run tests
         env:
@@ -53,6 +49,7 @@ jobs:
           AcquiringBank__BaseUrl: http://localhost:8080
           FraudService__BaseUrl: http://localhost:8086
           Service__OpenTelemetry__OtlpEndpoint: http://localhost:4318
+          Serilog__WriteTo__1__Args__endpoint: http://localhost:4318/v1/logs
         run: dotnet test --configuration Release --no-build --verbosity normal
 
       - name: Show docker logs on failure
