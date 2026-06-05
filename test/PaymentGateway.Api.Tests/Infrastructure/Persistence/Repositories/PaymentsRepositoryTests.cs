@@ -34,11 +34,11 @@ public sealed class PaymentRepositoryTests : IDisposable
         // Arrange
         var payment = CreatePayment();
 
-        await _dbContext.Payments.AddAsync(payment);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.Payments.AddAsync(payment, TestContext.Current.CancellationToken);
+        await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Act
-        var result = await _paymentRepository.GetByIdAsync(payment.Id);
+        var result = await _paymentRepository.GetByIdAsync(payment.Id, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.NotNull(result);
@@ -49,7 +49,7 @@ public sealed class PaymentRepositoryTests : IDisposable
     public async Task GetByIdAsync_WhenPaymentDoesNotExist_ReturnsNull()
     {
         // Act
-        var result = await _paymentRepository.GetByIdAsync(Guid.NewGuid());
+        var result = await _paymentRepository.GetByIdAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(result);
@@ -66,13 +66,14 @@ public sealed class PaymentRepositoryTests : IDisposable
             merchantId: merchantId,
             idempotencyKey: idempotencyKey);
 
-        await _dbContext.Payments.AddAsync(payment);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.Payments.AddAsync(payment, TestContext.Current.CancellationToken);
+        await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Act
         var result = await _paymentRepository.GetByIdempotencyKeyAsync(
             merchantId,
-            idempotencyKey);
+            idempotencyKey,
+            TestContext.Current.CancellationToken);
 
         // Assert
         Assert.NotNull(result);
@@ -87,13 +88,14 @@ public sealed class PaymentRepositoryTests : IDisposable
         // Arrange
         var payment = CreatePayment(idempotencyKey: "idem-123");
 
-        await _dbContext.Payments.AddAsync(payment);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.Payments.AddAsync(payment, TestContext.Current.CancellationToken);
+        await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Act
         var result = await _paymentRepository.GetByIdempotencyKeyAsync(
             Guid.NewGuid(),
-            payment.IdempotencyKey);
+            payment.IdempotencyKey,
+            TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(result);
@@ -106,12 +108,12 @@ public sealed class PaymentRepositoryTests : IDisposable
         var payment = CreatePayment();
 
         // Act
-        await _paymentRepository.AddAsync(payment);
-        await _dbContext.SaveChangesAsync();
+        await _paymentRepository.AddAsync(payment, TestContext.Current.CancellationToken);
+        await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Assert
         var savedPayment = await _dbContext.Payments
-            .SingleOrDefaultAsync(x => x.Id == payment.Id);
+            .SingleOrDefaultAsync(x => x.Id == payment.Id, TestContext.Current.CancellationToken);
 
         Assert.NotNull(savedPayment);
     }
@@ -122,8 +124,8 @@ public sealed class PaymentRepositoryTests : IDisposable
         // Arrange
         var payment = CreatePayment();
 
-        await _dbContext.Payments.AddAsync(payment);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.Payments.AddAsync(payment, TestContext.Current.CancellationToken);
+        await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         payment.MarkAsIdempotencyVerified();
         payment.MarkAsFraudCheckPassed();
@@ -132,12 +134,11 @@ public sealed class PaymentRepositoryTests : IDisposable
 
         // Act
         _paymentRepository.Update(payment);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Assert
         var updatedPayment = await _dbContext.Payments
-            .SingleAsync(x => x.Id == payment.Id);
-
+            .SingleAsync(x => x.Id == payment.Id, TestContext.Current.CancellationToken);
         Assert.Equal(payment.Status, updatedPayment.Status);
     }
 

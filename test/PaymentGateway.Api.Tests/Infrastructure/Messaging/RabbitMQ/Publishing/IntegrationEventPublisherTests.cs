@@ -6,22 +6,14 @@ using PaymentGateway.Api.Domain.Entities.Outbox;
 using PaymentGateway.Api.Infrastructure.Messaging.RabbitMQ.Publishing;
 using PaymentGateway.Api.Options;
 using PaymentGateway.Api.Tests.Infrastructure.Messaging.RabbitMQ;
-using PaymentGateway.Api.Tests.Integration.Messaging.RabbitMQ;
 
 using RabbitMQ.Client;
 
-namespace PaymentGateway.Api.Tests.Integration.Messaging.RabbitMQ.Publishing;
+namespace PaymentGateway.Api.Tests.Infrastructure.Messaging.RabbitMQ.Publishing;
 
 [Collection(nameof(RabbitMqTestCollection))]
-public sealed class IntegrationEventPublisherTests
+public sealed class IntegrationEventPublisherTests(RabbitMqTestFixture fixture)
 {
-    private readonly RabbitMqTestFixture _fixture;
-
-    public IntegrationEventPublisherTests(RabbitMqTestFixture fixture)
-    {
-        _fixture = fixture;
-    }
-
     [Fact]
     public async Task PublishAsync_WhenMessageIsValid_PublishesMessageToRabbitMq()
     {
@@ -32,11 +24,11 @@ public sealed class IntegrationEventPublisherTests
 
         var options = Microsoft.Extensions.Options.Options.Create(new RabbitMqOptions
         {
-            HostName = _fixture.HostName,
-            Port = _fixture.Port,
-            UserName = _fixture.UserName,
-            Password = _fixture.PasswordValue,
-            VirtualHost = _fixture.VirtualHost,
+            HostName = fixture.HostName,
+            Port = fixture.Port,
+            UserName = fixture.UserName,
+            Password = fixture.PasswordValue,
+            VirtualHost = fixture.VirtualHost,
             ExchangeName = exchangeName,
             QueueName = queueName,
             RoutingKey = routingKey
@@ -57,7 +49,7 @@ public sealed class IntegrationEventPublisherTests
             """);
 
         // Act
-        await publisher.PublishAsync(outboxEvent);
+        await publisher.PublishAsync(outboxEvent, TestContext.Current.CancellationToken);
 
         // Assert
         var publishedMessage = await ReadMessageFromQueueAsync(
@@ -94,11 +86,11 @@ public sealed class IntegrationEventPublisherTests
 
         var options = Microsoft.Extensions.Options.Options.Create(new RabbitMqOptions
         {
-            HostName = _fixture.HostName,
-            Port = _fixture.Port,
-            UserName = _fixture.UserName,
-            Password = _fixture.PasswordValue,
-            VirtualHost = _fixture.VirtualHost,
+            HostName = fixture.HostName,
+            Port = fixture.Port,
+            UserName = fixture.UserName,
+            Password = fixture.PasswordValue,
+            VirtualHost = fixture.VirtualHost,
             ExchangeName = exchangeName,
             QueueName = queueName,
             RoutingKey = routingKey
@@ -117,13 +109,13 @@ public sealed class IntegrationEventPublisherTests
             """);
 
         // Act
-        await publisher.PublishAsync(outboxEvent);
+        await publisher.PublishAsync(outboxEvent, TestContext.Current.CancellationToken);
 
         // Assert
         await using var connection = await CreateConnectionAsync();
-        await using var channel = await connection.CreateChannelAsync();
+        await using var channel = await connection.CreateChannelAsync(options:null, TestContext.Current.CancellationToken);
 
-        var queue = await channel.QueueDeclarePassiveAsync(queueName);
+        var queue = await channel.QueueDeclarePassiveAsync(queueName, TestContext.Current.CancellationToken);
 
         Assert.Equal(queueName, queue.QueueName);
         Assert.Equal(1u, queue.MessageCount);
@@ -173,11 +165,11 @@ public sealed class IntegrationEventPublisherTests
     {
         var factory = new ConnectionFactory
         {
-            HostName = _fixture.HostName,
-            Port = _fixture.Port,
-            UserName = _fixture.UserName,
-            Password = _fixture.PasswordValue,
-            VirtualHost = _fixture.VirtualHost
+            HostName = fixture.HostName,
+            Port = fixture.Port,
+            UserName = fixture.UserName,
+            Password = fixture.PasswordValue,
+            VirtualHost = fixture.VirtualHost
         };
 
         return await factory.CreateConnectionAsync();

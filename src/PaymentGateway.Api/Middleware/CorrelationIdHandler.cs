@@ -1,22 +1,15 @@
 ﻿namespace PaymentGateway.Api.Middleware;
 
-public class CorrelationIdHandler : DelegatingHandler
+public class CorrelationIdHandler(IHttpContextAccessor httpContextAccessor) : DelegatingHandler
 {
     private const string CORRELATION_ID = "X-Correlation-ID";
-
-    private readonly IHttpContextAccessor _httpContextAccessor;
-
-    public CorrelationIdHandler(IHttpContextAccessor httpContextAccessor)
-    {
-        _httpContextAccessor = httpContextAccessor;
-    }
 
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
         var correlationId =
-            _httpContextAccessor.HttpContext?
+            httpContextAccessor.HttpContext?
                 .Request.Headers[CORRELATION_ID]
                 .ToString();
 

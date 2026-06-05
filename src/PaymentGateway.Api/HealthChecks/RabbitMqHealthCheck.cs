@@ -33,13 +33,10 @@ public sealed class RabbitMqHealthCheck(IOptions<RabbitMqOptions> options) : IHe
                 await connection.CreateChannelAsync(
                     cancellationToken: cancellationToken);
 
-            if (!connection.IsOpen || !channel.IsOpen)
-            {
-                return HealthCheckResult.Unhealthy(
-                    "RabbitMQ connection or channel is closed.");
-            }
-
-            return HealthCheckResult.Healthy("RabbitMQ is healthy.");
+            return !connection.IsOpen || !channel.IsOpen
+                ? HealthCheckResult.Unhealthy(
+                    "RabbitMQ connection or channel is closed.")
+                : HealthCheckResult.Healthy("RabbitMQ is healthy.");
         }
         catch (Exception ex)
         {

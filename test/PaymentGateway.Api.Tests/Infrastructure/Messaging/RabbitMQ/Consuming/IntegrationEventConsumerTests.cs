@@ -7,22 +7,14 @@ using PaymentGateway.Api.Application.Abstractions.CQRS;
 using PaymentGateway.Api.Application.Features.Payments.IntegrationEvents;
 using PaymentGateway.Api.Infrastructure.Messaging.RabbitMQ.Consuming;
 using PaymentGateway.Api.Options;
-using PaymentGateway.Api.Tests.Infrastructure.Messaging.RabbitMQ;
 
 using RabbitMQ.Client;
 
-namespace PaymentGateway.Api.Tests.Integration.Messaging.RabbitMQ.Consuming;
+namespace PaymentGateway.Api.Tests.Infrastructure.Messaging.RabbitMQ.Consuming;
 
 [Collection(nameof(RabbitMqTestCollection))]
-public sealed class IntegrationEventConsumerTests
+public sealed class IntegrationEventConsumerTests(RabbitMqTestFixture fixture)
 {
-    private readonly RabbitMqTestFixture _fixture;
-
-    public IntegrationEventConsumerTests(RabbitMqTestFixture fixture)
-    {
-        _fixture = fixture;
-    }
-
     [Fact]
     public async Task Consumer_WhenMessageIsPublished_HandlesMessageAndAcknowledgesIt()
     {
@@ -152,11 +144,11 @@ public sealed class IntegrationEventConsumerTests
     {
         return new RabbitMqOptions
         {
-            HostName = _fixture.HostName,
-            Port = _fixture.Port,
-            UserName = _fixture.UserName,
-            Password = _fixture.PasswordValue,
-            VirtualHost = _fixture.VirtualHost,
+            HostName = fixture.HostName,
+            Port = fixture.Port,
+            UserName = fixture.UserName,
+            Password = fixture.PasswordValue,
+            VirtualHost = fixture.VirtualHost,
             ExchangeName = exchangeName,
             QueueName = queueName,
             RoutingKey = routingKey,
@@ -212,11 +204,11 @@ public sealed class IntegrationEventConsumerTests
     {
         var factory = new ConnectionFactory
         {
-            HostName = _fixture.HostName,
-            Port = _fixture.Port,
-            UserName = _fixture.UserName,
-            Password = _fixture.PasswordValue,
-            VirtualHost = _fixture.VirtualHost
+            HostName = fixture.HostName,
+            Port = fixture.Port,
+            UserName = fixture.UserName,
+            Password = fixture.PasswordValue,
+            VirtualHost = fixture.VirtualHost
         };
 
         return await factory.CreateConnectionAsync();

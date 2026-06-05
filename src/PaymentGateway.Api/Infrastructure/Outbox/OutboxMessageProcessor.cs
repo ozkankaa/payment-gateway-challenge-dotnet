@@ -3,7 +3,7 @@
 using PaymentGateway.Api.Infrastructure.Messaging.Abstraction;
 using PaymentGateway.Api.Infrastructure.Persistence;
 
-namespace PaymentGateway.Api.Infrastructure.BackgroundServices;
+namespace PaymentGateway.Api.Infrastructure.Outbox;
 
 public sealed class OutboxMessageProcessor(
     IServiceScopeFactory serviceScopeFactory,

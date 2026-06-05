@@ -6,7 +6,7 @@ namespace PaymentGateway.Api.Infrastructure.Services.IdempotencyService;
 
 public class IdempotencyService : IIdempotencyService
 {
-    private static readonly ConcurrentDictionary<string, IdempotencyResult> _idempotency = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, IdempotencyResult> Idempotency = new(StringComparer.Ordinal);
 
     public IdempotencyResult TryAdd(string idempotencyKey, string requestHash)
     {
@@ -24,17 +24,14 @@ public class IdempotencyService : IIdempotencyService
 
         var newIdempotencyResult = new IdempotencyResult(IdempotencyStatus.Added, null, requestHash, null);
 
-        if (!_idempotency.TryAdd(idempotencyKey, newIdempotencyResult))
+        if (!Idempotency.TryAdd(idempotencyKey, newIdempotencyResult))
         {
             var existingIdempotencyResult = TryGet(idempotencyKey);
 
-            if (existingIdempotencyResult.Status == IdempotencyStatus.Added 
-                && existingIdempotencyResult.RequestHash == requestHash)
-            {
-                return existingIdempotencyResult;
-            }
-
-            return existingIdempotencyResult.RequestHash != requestHash
+            return existingIdempotencyResult.Status == IdempotencyStatus.Added
+                && existingIdempotencyResult.RequestHash == requestHash
+                ? existingIdempotencyResult
+                : existingIdempotencyResult.RequestHash != requestHash
                 ? new IdempotencyResult(
                     IdempotencyStatus.Conflict,
                     null,
@@ -53,7 +50,7 @@ public class IdempotencyService : IIdempotencyService
 
     public IdempotencyResult TryGet(string idempotencyKey)
     {
-        return _idempotency.TryGetValue(idempotencyKey, out IdempotencyResult? idempotencyResult)
+        return Idempotency.TryGetValue(idempotencyKey, out IdempotencyResult? idempotencyResult)
             ? idempotencyResult
             : new IdempotencyResult(
             IdempotencyStatus.Error,
@@ -99,7 +96,7 @@ public class IdempotencyService : IIdempotencyService
             Status = IdempotencyStatus.Updated
         };
 
-        return !_idempotency.TryUpdate(idempotencyKey, newIdempotencyResult, existingIdempotencyResult)
+        return !Idempotency.TryUpdate(idempotencyKey, newIdempotencyResult, existingIdempotencyResult)
             ? new IdempotencyResult(
                 IdempotencyStatus.Error,
                 payment,

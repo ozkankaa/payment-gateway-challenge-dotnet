@@ -48,7 +48,7 @@ public sealed class UnitOfWorkTests : IDisposable
         _dbContext.Payments.Add(payment);
 
         // Act
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Assert
         _domainEventHandlerMock.Verify(
@@ -68,7 +68,7 @@ public sealed class UnitOfWorkTests : IDisposable
         _dbContext.Payments.Add(payment);
 
         // Act
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(payment.DomainEvents);
@@ -87,7 +87,7 @@ public sealed class UnitOfWorkTests : IDisposable
         _dbContext.Payments.Add(payment);
 
         // Act
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Assert
         _domainEventHandlerMock.Verify(
@@ -105,7 +105,7 @@ public sealed class UnitOfWorkTests : IDisposable
         _dbContext.Payments.Add(payment);
 
         // Act
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Assert
         _domainEventHandlerMock.Verify(
@@ -124,7 +124,7 @@ public sealed class UnitOfWorkTests : IDisposable
         _dbContext.Payments.Add(payment);
 
         // Act
-        var result = await _unitOfWork.SaveChangesAsync();
+        var result = await _unitOfWork.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(1, result);

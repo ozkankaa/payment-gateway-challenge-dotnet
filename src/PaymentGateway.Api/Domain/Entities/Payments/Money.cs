@@ -25,12 +25,10 @@ public sealed record Money
 
         currency = currency.ToUpperInvariant();
 
-        if (currency.Length != 3)
-            throw new DomainValidationException("Currency must be 3 characters.", nameof(currency));
-
-        if (!SupportedCurrencies.Contains(currency))
-            throw new DomainValidationException("Currency is not supported.", nameof(currency));
-
-        return new Money(amount, currency);
+        return currency.Length != 3
+            ? throw new DomainValidationException("Currency must be 3 characters.", nameof(currency))
+            : !SupportedCurrencies.Contains(currency)
+            ? throw new DomainValidationException("Currency is not supported.", nameof(currency))
+            : new Money(amount, currency);
     }
 }

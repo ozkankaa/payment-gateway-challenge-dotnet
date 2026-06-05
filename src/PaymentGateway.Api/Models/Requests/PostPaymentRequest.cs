@@ -5,8 +5,8 @@ namespace PaymentGateway.Api.Models.Requests;
 public sealed record PostPaymentRequest(
     [Required] Guid MerchantId,
     [Required] string CardNumber,
-    [Required] int? ExpiryMonth,
-    [Required] int? ExpiryYear,
+    [Required] int ExpiryMonth,
+    [Required] int ExpiryYear,
     [Required] string Currency,
-    [Required] long? Amount,
+    [Required] long Amount,
     [Required] string Cvv);

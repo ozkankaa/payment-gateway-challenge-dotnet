@@ -7,13 +7,8 @@ using PaymentGateway.Api.Saga.Entities;
 
 namespace PaymentGateway.Api.Infrastructure.Persistence;
 
-public class PaymentEventDbContext : SagaDbContext
+public class PaymentEventDbContext(DbContextOptions options) : SagaDbContext(options)
 {
-    public PaymentEventDbContext(DbContextOptions options)
-        : base(options)
-    {
-    }
-
     protected override IEnumerable<ISagaClassMap> Configurations
     {
         get { yield return new PaymentEventEntity(); }

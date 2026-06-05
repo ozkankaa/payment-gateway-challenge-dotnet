@@ -13,6 +13,6 @@ internal static class AggregateRootTestExtensions
                 "RaiseDomainEvent",
                 BindingFlags.Instance | BindingFlags.NonPublic);
 
-        method!.Invoke(aggregateRoot, new object[] { domainEvent });
+        method!.Invoke(aggregateRoot, [domainEvent]);
     }
 }

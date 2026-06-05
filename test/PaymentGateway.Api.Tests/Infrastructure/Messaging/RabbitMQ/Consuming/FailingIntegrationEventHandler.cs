@@ -1,6 +1,6 @@
 ﻿using PaymentGateway.Api.Application.Features.Payments.IntegrationEvents;
 
-namespace PaymentGateway.Api.Tests.Integration.Messaging.RabbitMQ.Consuming;
+namespace PaymentGateway.Api.Tests.Infrastructure.Messaging.RabbitMQ.Consuming;
 
 public sealed class FailingIntegrationEventHandler : IIntegrationEventHandler
 {

@@ -5,16 +5,16 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Moq.Protected;
 
-using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService;
-using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService.Requests;
-using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService.Responses;
+using PaymentGateway.Api.Infrastructure.Services.FraudService;
+using PaymentGateway.Api.Infrastructure.Services.FraudService.Requests;
+using PaymentGateway.Api.Infrastructure.Services.FraudService.Responses;
 
-namespace PaymentGateway.Api.Tests.Infrastructure.Services;
+namespace PaymentGateway.Api.Tests.Infrastructure.Services.FraudService;
 
-public class AcquiringBankClientTests
+public class FraudServiceClientTests
 {
     [Fact]
-    public async Task BankPayment_ReturnsServiceUnavailable()
+    public async Task FraudService_ReturnsServiceUnavailable()
     {
         // Arrange
         var handlerMock = new Mock<HttpMessageHandler>();
@@ -22,7 +22,7 @@ public class AcquiringBankClientTests
         handlerMock.Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(r => r.Method == HttpMethod.Post && r.RequestUri == new Uri("http://localhost:5000/payments")),
+                ItExpr.Is<HttpRequestMessage>(r => r.Method == HttpMethod.Post && r.RequestUri == new Uri("http://localhost:5000/frauds")),
                 ItExpr.IsAny<CancellationToken>()
             )
             .ReturnsAsync(new HttpResponseMessage
@@ -36,28 +36,24 @@ public class AcquiringBankClientTests
             BaseAddress = new Uri("http://localhost:5000")
         };
 
-        var logger = new Logger<AcquiringBankClient>(new LoggerFactory());
+        var logger = new Logger<FraudServiceClient>(new LoggerFactory());
 
-        var acquiringBankClient = new AcquiringBankClient(httpClient, logger);
+        var fraudServiceClient = new FraudServiceClient(httpClient, logger);
 
-        var request = new BankPaymentRequest(
-            Amount: 100,
-            Currency: "USD",
-            CardNumber: "4111111111111111",
-            ExpiryDate: "12/25",
-            Cvv: "123"
+        var request = new FraudCheckRequest(
+            CardNumber: "4111111111111119"
         );
 
         // Act
-        var exception = await Assert.ThrowsAsync<HttpRequestException>(() => acquiringBankClient.ProcessAsync(request, CancellationToken.None));
+        var exception = await Assert.ThrowsAsync<HttpRequestException>(() => fraudServiceClient.CheckAsync(request, CancellationToken.None));
 
         // Assert
         Assert.NotNull(exception);
-        Assert.Contains("Acquiring bank is unavailable", exception.Message);
+        Assert.Contains("Fraud service is unavailable", exception.Message);
     }
 
     [Fact]
-    public async Task BankPayment_ReturnsBadRequest()
+    public async Task FraudService_ReturnsBadRequest()
     {
         // Arrange
         var handlerMock = new Mock<HttpMessageHandler>();
@@ -65,7 +61,7 @@ public class AcquiringBankClientTests
         handlerMock.Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(r => r.Method == HttpMethod.Post && r.RequestUri == new Uri("http://localhost:5000/payments")),
+                ItExpr.Is<HttpRequestMessage>(r => r.Method == HttpMethod.Post && r.RequestUri == new Uri("http://localhost:5000/frauds")),
                 ItExpr.IsAny<CancellationToken>()
             )
             .ReturnsAsync(new HttpResponseMessage
@@ -79,27 +75,23 @@ public class AcquiringBankClientTests
             BaseAddress = new Uri("http://localhost:5000")
         };
 
-        var logger = new Logger<AcquiringBankClient>(new LoggerFactory());
+        var logger = new Logger<FraudServiceClient>(new LoggerFactory());
 
-        var acquiringBankClient = new AcquiringBankClient(httpClient, logger);
+        var fraudServiceClient = new FraudServiceClient(httpClient, logger);
 
-        var request = new BankPaymentRequest(
-            Amount: 0,
-            Currency: "ABC",
-            CardNumber: "0000000000000000",
-            ExpiryDate: "00/00",
-            Cvv: "000"
+        var request = new FraudCheckRequest(
+            CardNumber: "0000000000000001"
         );
 
         // Act
-        var response = await acquiringBankClient.ProcessAsync(request, CancellationToken.None);
+        var response = await fraudServiceClient.CheckAsync(request, CancellationToken.None);
 
         // Assert
         Assert.Null(response);
     }
 
     [Fact]
-    public async Task BankPayment_ReturnsSuccess()
+    public async Task FraudService_ReturnsSuccess()
     {
         // Arrange
         var handlerMock = new Mock<HttpMessageHandler>();
@@ -107,13 +99,13 @@ public class AcquiringBankClientTests
         handlerMock.Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(r => r.Method == HttpMethod.Post && r.RequestUri == new Uri("http://localhost:5000/payments")),
+                ItExpr.Is<HttpRequestMessage>(r => r.Method == HttpMethod.Post && r.RequestUri == new Uri("http://localhost:5000/frauds")),
                 ItExpr.IsAny<CancellationToken>()
             )
             .ReturnsAsync(new HttpResponseMessage
             {
                 StatusCode = System.Net.HttpStatusCode.OK,
-                Content = JsonContent.Create(new BankPaymentResponse
+                Content = JsonContent.Create(new FraudCheckResponse
                 (
                     Authorized: true,
                     AuthorizationCode: authorizationCode
@@ -125,20 +117,16 @@ public class AcquiringBankClientTests
             BaseAddress = new Uri("http://localhost:5000")
         };
 
-        var logger = new Logger<AcquiringBankClient>(new LoggerFactory());
+        var logger = new Logger<FraudServiceClient>(new LoggerFactory());
 
-        var acquiringBankClient = new AcquiringBankClient(httpClient, logger);
+        var fraudServiceClient = new FraudServiceClient(httpClient, logger);
 
-        var request = new BankPaymentRequest(
-            Amount: 100,
-            Currency: "USD",
-            CardNumber: "4111111111111111",
-            ExpiryDate: "12/25",
-            Cvv: "123"
+        var request = new FraudCheckRequest(
+            CardNumber: "4111111111111113"
         );
 
         // Act
-        var response = await acquiringBankClient.ProcessAsync(request, CancellationToken.None);
+        var response = await fraudServiceClient.CheckAsync(request, CancellationToken.None);
 
         // Assert
         Assert.NotNull(response);

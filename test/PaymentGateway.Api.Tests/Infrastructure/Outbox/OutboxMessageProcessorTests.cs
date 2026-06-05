@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 
 using PaymentGateway.Api.Domain.Entities.Outbox;
-using PaymentGateway.Api.Infrastructure.BackgroundServices;
+using PaymentGateway.Api.Infrastructure.Outbox;
 using PaymentGateway.Api.Infrastructure.Messaging.Abstraction;
 using PaymentGateway.Api.Infrastructure.Persistence;
 
@@ -32,10 +32,7 @@ public sealed class OutboxMessageProcessorTests : IDisposable
 
         var services = new ServiceCollection();
 
-        services.AddDbContext<PaymentDbContext>(options =>
-        {
-            options.UseSqlite(_connection);
-        });
+        services.AddDbContext<PaymentDbContext>(options => options.UseSqlite(_connection));
 
         services.AddScoped(_ => _publisherMock.Object);
 
@@ -188,10 +185,7 @@ public sealed class OutboxMessageProcessorTests : IDisposable
             .Setup(x => x.PublishAsync(
                 It.IsAny<OutboxEvent>(),
                 It.IsAny<CancellationToken>()))
-            .Callback<OutboxEvent, CancellationToken>((message, _) =>
-            {
-                publishedIds.Add(message.Id);
-            })
+            .Callback<OutboxEvent, CancellationToken>((message, _) => publishedIds.Add(message.Id))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -213,7 +207,7 @@ public sealed class OutboxMessageProcessorTests : IDisposable
 
         var task = (Task)method.Invoke(
             _sut,
-            new object[] { CancellationToken.None })!;
+            [CancellationToken.None])!;
 
         await task;
     }

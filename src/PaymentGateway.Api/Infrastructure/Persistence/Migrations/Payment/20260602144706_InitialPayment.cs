@@ -22,10 +22,7 @@ namespace PaymentGateway.Api.Infrastructure.Persistence.Migrations.Payment
                     ProcessedAtUtc = table.Column<DateTime>(type: "TEXT", nullable: true),
                     Error = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: true)
                 },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_OutboxEvents", x => x.Id);
-                });
+                constraints: table => table.PrimaryKey("PK_OutboxEvents", x => x.Id));
 
             migrationBuilder.CreateTable(
                 name: "Payments",
@@ -49,9 +46,7 @@ namespace PaymentGateway.Api.Infrastructure.Persistence.Migrations.Payment
                     Version = table.Column<byte[]>(type: "BLOB", nullable: false, defaultValueSql: "randomblob(8)")
                 },
                 constraints: table =>
-                {
-                    table.PrimaryKey("PK_Payments", x => x.Id);
-                });
+                table.PrimaryKey("PK_Payments", x => x.Id));
 
             migrationBuilder.CreateIndex(
                 name: "IX_OutboxEvents_ProcessedAtUtc",
@@ -61,7 +56,7 @@ namespace PaymentGateway.Api.Infrastructure.Persistence.Migrations.Payment
             migrationBuilder.CreateIndex(
                 name: "IX_Payments_MerchantId_IdempotencyKey",
                 table: "Payments",
-                columns: new[] { "MerchantId", "IdempotencyKey" },
+                columns: ["MerchantId", "IdempotencyKey"],
                 unique: true);
         }
 

@@ -14,9 +14,8 @@ public class AcquiringBankAuthorizeHandler(IAcquiringBankClient acquiringBankCli
                 CreateBankPaymentRequest(command),
                 cancellationToken);
 
-            if (bankResponse is null)
-            {
-                return new AcquiringBankAuthorizeResult() { 
+            return bankResponse is null
+                ? new AcquiringBankAuthorizeResult() {
                     Authorized = false,
                     AuthorizationCode = null,
                     Error = new ErrorDto
@@ -24,20 +23,15 @@ public class AcquiringBankAuthorizeHandler(IAcquiringBankClient acquiringBankCli
                         Code : "AcquiringBankError",
                         Message : "Failed to process payment with acquiring bank."
                     )
-                };
-            }
-
-            if (!bankResponse.Authorized)
-            {
-                return new AcquiringBankAuthorizeResult()
+                }
+                : !bankResponse.Authorized
+                ? new AcquiringBankAuthorizeResult()
                 {
                     Authorized = false,
                     AuthorizationCode = null,
                     Error = PaymentFailureFactory.AcquiringBankDeclined()
-                };
-            }
-
-            return new AcquiringBankAuthorizeResult()
+                }
+                : new AcquiringBankAuthorizeResult()
             {
                 Authorized = true,
                 AuthorizationCode = bankResponse.AuthorizationCode,

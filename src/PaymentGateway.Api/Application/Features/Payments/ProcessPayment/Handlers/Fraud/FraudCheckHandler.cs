@@ -13,16 +13,13 @@ namespace PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handle
                     new FraudCheckRequest(command.CardNumber),
                     cancellationToken);
 
-                if (response is null || !response.Authorized)
-                {
-                    return new FraudCheckResult
+                return response is null || !response.Authorized
+                    ? new FraudCheckResult
                     {
                         Authorized = false,
                         Error = PaymentFailureFactory.PaymentDeclinedByFraudService()
-                    };
-                }
-
-                return new FraudCheckResult
+                    }
+                    : new FraudCheckResult
                 {
                     Authorized = true
                 };

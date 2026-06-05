@@ -5,13 +5,8 @@ using PaymentGateway.Api.Domain.Entities.Payments;
 
 namespace PaymentGateway.Api.Infrastructure.Persistence;
 
-public sealed class PaymentDbContext : DbContext
+public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options) : DbContext(options)
 {
-    public PaymentDbContext(DbContextOptions<PaymentDbContext> options)
-        : base(options)
-    {
-    }
-
     public DbSet<Payment> Payments => Set<Payment>();
 
     public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();

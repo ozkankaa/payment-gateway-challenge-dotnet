@@ -17,14 +17,14 @@ public sealed class IntegrationEventPublisher(
 {
     private readonly RabbitMqOptions _options = options.Value;
 
-    private static readonly ActivitySource _activitySource =
+    private static readonly ActivitySource ActivitySource =
     new("PaymentGateway.Api");
 
     public async Task PublishAsync(
         OutboxEvent message,
         CancellationToken cancellationToken = default)
     {
-        using var activity = _activitySource.StartActivity(
+        using var activity = ActivitySource.StartActivity(
             "Process Integration Event",
             ActivityKind.Producer);
 

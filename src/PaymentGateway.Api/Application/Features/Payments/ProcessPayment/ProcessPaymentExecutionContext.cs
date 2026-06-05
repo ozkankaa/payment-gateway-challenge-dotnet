@@ -77,7 +77,7 @@ public class ProcessPaymentExecutionContext
             idempotencyKey,
             Command.MerchantId,
             CardDetails.Create(
-                Command.CardNumber[^4..],
+                Command.CardNumber![^4..],
                 Command.ExpiryMonth!.Value,
                 Command.ExpiryYear!.Value),
             Money.Create(

@@ -187,7 +187,7 @@ public sealed class ProcessPaymentHandler(
         try
         {
             var response = await fraudCheckHandler.HandleAsync(
-                new FraudCheckCommand(context.Command.CardNumber),
+                new FraudCheckCommand(context.Command.CardNumber!),
                 cancellationToken);
 
             if (response is null || !response.Authorized)
@@ -208,7 +208,7 @@ public sealed class ProcessPaymentHandler(
 
             logger.LogInformation(
                 "Fraud check authorized payment for card ending {LastFourDigits}.",
-                GetLastFourDigits(context.Command.CardNumber));
+                GetLastFourDigits(context.Command.CardNumber!));
 
             context.ContinueExecution(PaymentOperationOutcome.Ok);
         }
@@ -231,12 +231,12 @@ public sealed class ProcessPaymentHandler(
     {
         var bankResponse = await acquiringBankAuthorizeHandler.HandleAsync(
             new AcquiringBankAuthorizeCommand(
-                CardNumber: context.Command.CardNumber,
-                ExpiryMonth: context.Command.ExpiryMonth,
-                ExpiryYear: context.Command.ExpiryYear,
-                Currency: context.Command.Currency,
-                Amount: context.Command.Amount,
-                Cvv: context.Command.Cvv),
+                CardNumber: context.Command.CardNumber!,
+                ExpiryMonth: context.Command.ExpiryMonth!.Value,
+                ExpiryYear: context.Command.ExpiryYear!.Value,
+                Currency: context.Command.Currency!,
+                Amount: context.Command.Amount!.Value,
+                Cvv: context.Command.Cvv!),
             cancellationToken);
 
         if (!bankResponse.Authorized)

@@ -43,13 +43,11 @@ public static class RabbitMqDiagnostics
         IReadOnlyBasicProperties properties,
         string headerName)
     {
-        if (properties.Headers is null)
-            return null;
-
-        if (!properties.Headers.TryGetValue(headerName, out var value))
-            return null;
-
-        return value switch
+        return properties.Headers is null
+            ? null
+            : !properties.Headers.TryGetValue(headerName, out var value)
+            ? null
+            : value switch
         {
             byte[] bytes => Encoding.UTF8.GetString(bytes),
             string text => text,

@@ -9,11 +9,6 @@ public class DomainEventHandler(PaymentCapturedDomainEventHandler paymentCapture
 {
     public async Task<bool> HandleAsync(IDomainEvent domainEvent, CancellationToken cancellationToken)
     {
-        if (domainEvent is PaymentCapturedDomainEvent)
-        {
-            return await paymentCapturedDomainEventHandler.HandleAsync((PaymentCapturedDomainEvent)domainEvent, cancellationToken);
-        }
-
-        return false;
+        return domainEvent is PaymentCapturedDomainEvent @event && await paymentCapturedDomainEventHandler.HandleAsync(@event, cancellationToken);
     }
 }

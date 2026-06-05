@@ -5,7 +5,7 @@ namespace PaymentGateway.Api.Mappers;
 
 public static class PaymentGrpcMapper
 {
-    public static PaymentGrpcResponse ToGrpcResponse(this PaymentDto payment, string? ErrorCode = null, string? ErrorMessage = null)
+    public static PaymentGrpcResponse ToGrpcResponse(this PaymentDto payment, string? errorCode = null, string? errorMessage = null)
     {
         return new PaymentGrpcResponse
         {
@@ -17,8 +17,8 @@ public static class PaymentGrpcMapper
             ExpiryYear = payment.ExpiryYear.ToString("D4"),
             Amount = payment.Amount,
             Currency = payment.Currency,
-            ErrorCode = ErrorCode ?? string.Empty,
-            ErrorMessage = ErrorMessage ?? string.Empty
+            ErrorCode = errorCode ?? string.Empty,
+            ErrorMessage = errorMessage ?? string.Empty
         };
     }
 }

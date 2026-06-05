@@ -31,9 +31,8 @@ public sealed record CardDetails
             .AddMonths(1)
             .AddSeconds(-1);
 
-        if (expiresAt < now)
-            throw new DomainValidationException("Card has expired.", nameof(expiryYear));
-
-        return new CardDetails(lastFour, expiryMonth, expiryYear);
+        return expiresAt < now
+            ? throw new DomainValidationException("Card has expired.", nameof(expiryYear))
+            : new CardDetails(lastFour, expiryMonth, expiryYear);
     }
 }

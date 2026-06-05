@@ -5,14 +5,9 @@ using PaymentGateway.Api.Domain.Entities.Payments;
 
 namespace PaymentGateway.Api.Infrastructure.Persistence.Repositories;
 
-public sealed class PaymentRepository : IPaymentRepository
+public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepository
 {
-    private readonly PaymentDbContext _dbContext;
-
-    public PaymentRepository(PaymentDbContext dbContext)
-    {
-        _dbContext = dbContext;
-    }
+    private readonly PaymentDbContext _dbContext = dbContext;
 
     public Task<Payment?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {

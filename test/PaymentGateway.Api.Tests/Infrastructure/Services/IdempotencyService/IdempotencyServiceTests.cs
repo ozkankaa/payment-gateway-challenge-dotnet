@@ -1,11 +1,11 @@
 ﻿using PaymentGateway.Api.Application.Features.Payments.Dtos;
 using PaymentGateway.Api.Infrastructure.Services.IdempotencyService;
 
-namespace PaymentGateway.Api.Tests.Infrastructure.Services;
+namespace PaymentGateway.Api.Tests.Infrastructure.Services.IdempotencyService;
 
 public sealed class IdempotencyServiceTests
 {
-    private readonly IdempotencyService _idempotencyService = new();
+    private readonly Api.Infrastructure.Services.IdempotencyService.IdempotencyService _idempotencyService = new();
 
     [Fact]
     public void TryAdd_WhenKeyAndHashAreValid_ReturnsAdded()

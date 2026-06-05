@@ -36,11 +36,11 @@ public sealed class OutboxEventRepositoryTests : IDisposable
 
         // Act
         await _outboxEventRepository.AddAsync(outboxEvent, CancellationToken.None);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Assert
         var savedEvent = await _dbContext.OutboxEvents
-            .SingleOrDefaultAsync(x => x.Id == outboxEvent.Id);
+            .SingleOrDefaultAsync(x => x.Id == outboxEvent.Id, TestContext.Current.CancellationToken);
 
         Assert.NotNull(savedEvent);
         Assert.Equal(outboxEvent.Id, savedEvent.Id);

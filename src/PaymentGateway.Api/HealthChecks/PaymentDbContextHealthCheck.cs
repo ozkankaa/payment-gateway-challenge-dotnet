@@ -21,13 +21,10 @@ public sealed class PaymentDbContextHealthCheck(IServiceScopeFactory serviceScop
             var canConnect =
                 await dbContext.Database.CanConnectAsync(cancellationToken);
 
-            if (!canConnect)
-            {
-                return HealthCheckResult.Unhealthy(
-                    "Payment database is not reachable.");
-            }
-
-            return HealthCheckResult.Healthy(
+            return !canConnect
+                ? HealthCheckResult.Unhealthy(
+                    "Payment database is not reachable.")
+                : HealthCheckResult.Healthy(
                 "Payment database is reachable.");
         }
         catch (Exception ex)

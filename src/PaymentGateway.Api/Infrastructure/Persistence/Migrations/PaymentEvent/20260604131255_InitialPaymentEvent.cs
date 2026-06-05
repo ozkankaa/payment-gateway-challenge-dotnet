@@ -1,4 +1,5 @@
 ﻿using System;
+
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -45,10 +46,7 @@ namespace PaymentGateway.Api.Infrastructure.Persistence.Migrations.PaymentEvent
                     Delivered = table.Column<DateTime>(type: "TEXT", nullable: true),
                     LastSequenceNumber = table.Column<long>(type: "INTEGER", nullable: true)
                 },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_OutboxState", x => x.OutboxId);
-                });
+                constraints: table => table.PrimaryKey("PK_OutboxState", x => x.OutboxId));
 
             migrationBuilder.CreateTable(
                 name: "PaymentEventState",
@@ -71,10 +69,7 @@ namespace PaymentGateway.Api.Infrastructure.Persistence.Migrations.PaymentEvent
                     FailureReason = table.Column<string>(type: "TEXT", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_PaymentEventState", x => x.CorrelationId);
-                });
+                constraints: table => table.PrimaryKey("PK_PaymentEventState", x => x.CorrelationId));
 
             migrationBuilder.CreateTable(
                 name: "OutboxMessage",
@@ -110,7 +105,7 @@ namespace PaymentGateway.Api.Infrastructure.Persistence.Migrations.PaymentEvent
                         name: "FK_OutboxMessage_InboxState_InboxMessageId_InboxConsumerId",
                         columns: x => new { x.InboxMessageId, x.InboxConsumerId },
                         principalTable: "InboxState",
-                        principalColumns: new[] { "MessageId", "ConsumerId" });
+                        principalColumns: ["MessageId", "ConsumerId"]);
                     table.ForeignKey(
                         name: "FK_OutboxMessage_OutboxState_OutboxId",
                         column: x => x.OutboxId,
@@ -136,13 +131,13 @@ namespace PaymentGateway.Api.Infrastructure.Persistence.Migrations.PaymentEvent
             migrationBuilder.CreateIndex(
                 name: "IX_OutboxMessage_InboxMessageId_InboxConsumerId_SequenceNumber",
                 table: "OutboxMessage",
-                columns: new[] { "InboxMessageId", "InboxConsumerId", "SequenceNumber" },
+                columns: ["InboxMessageId", "InboxConsumerId", "SequenceNumber"],
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_OutboxMessage_OutboxId_SequenceNumber",
                 table: "OutboxMessage",
-                columns: new[] { "OutboxId", "SequenceNumber" },
+                columns: ["OutboxId", "SequenceNumber"],
                 unique: true);
 
             migrationBuilder.CreateIndex(

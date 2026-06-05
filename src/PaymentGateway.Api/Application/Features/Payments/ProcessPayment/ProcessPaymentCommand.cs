@@ -2,11 +2,11 @@
 
 public sealed record ProcessPaymentCommand(
     Guid MerchantId,
-    string CardNumber,
+    string? CardNumber,
     int? ExpiryMonth,
     int? ExpiryYear,
     string Currency,
     long? Amount,
-    string Cvv,
+    string? Cvv,
     string? IdempotencyKey
     );

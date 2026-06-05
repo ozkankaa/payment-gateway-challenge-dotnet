@@ -6,13 +6,15 @@ namespace PaymentGateway.Api.Tests.Common;
 
 public sealed class FakeAcquiringBankClient : IAcquiringBankClient
 {
-    public static int CallCounts;
+    private static int s_callCounts;
 
-    public static void Reset() => Interlocked.Exchange(ref CallCounts, 0);
+    public static int CallCounts => s_callCounts;
+
+    public static void Reset() => Interlocked.Exchange(ref s_callCounts, 0);
 
     public async Task<BankPaymentResponse?> ProcessAsync(BankPaymentRequest request, CancellationToken cancellationToken)
     {
-        Interlocked.Increment(ref CallCounts);
+        Interlocked.Increment(ref s_callCounts);
         await Task.Delay(25, cancellationToken);
         var last = request.CardNumber[^1];
         return last == '0'

@@ -25,10 +25,10 @@ using PaymentGateway.Api.Application.Features.Payments.ProcessPayment.Handlers.P
 using PaymentGateway.Api.Domain.Events.PaymentCaptured;
 using PaymentGateway.Api.Filters;
 using PaymentGateway.Api.Infrastructure;
-using PaymentGateway.Api.Infrastructure.BackgroundServices;
 using PaymentGateway.Api.Infrastructure.Messaging.Abstraction;
 using PaymentGateway.Api.Infrastructure.Messaging.RabbitMQ.Consuming;
 using PaymentGateway.Api.Infrastructure.Messaging.RabbitMQ.Publishing;
+using PaymentGateway.Api.Infrastructure.Outbox;
 using PaymentGateway.Api.Infrastructure.Persistence;
 using PaymentGateway.Api.Infrastructure.Persistence.Repositories;
 using PaymentGateway.Api.Infrastructure.Services.ETagService;
@@ -67,7 +67,7 @@ public static class ServiceBuilderExtensions
         services.AddCors(configuration);
         services.AddOutputCache(configuration);
         services.AddRateLimit(configuration);
-        services.AddCustomHealthChecks(configuration);
+        services.AddCustomHealthChecks();
 
         services.AddApplicationOpenTelemetry(configuration);
 
@@ -281,12 +281,9 @@ public static class ServiceBuilderExtensions
 
     public static IServiceCollection AddSaga(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDbContext<PaymentEventDbContext>(options =>
-        {
-            options.UseSqlite(
+        services.AddDbContext<PaymentEventDbContext>(options => options.UseSqlite(
                 configuration.GetConnectionString("PaymentSagaDb"),
-                x => x.MigrationsHistoryTable("__EFMigrationsHistory_PaymentSaga"));
-        });
+                x => x.MigrationsHistoryTable("__EFMigrationsHistory_PaymentSaga")));
 
         var rabbitOptions = configuration.GetSection("RabbitMq").Get<RabbitMqOptions>() ?? new RabbitMqOptions();
 
@@ -302,10 +299,7 @@ public static class ServiceBuilderExtensions
             {
                 r.ConcurrencyMode = ConcurrencyMode.Optimistic;
 
-                r.AddDbContext<DbContext, PaymentEventDbContext>((provider, options) =>
-                {
-                    options.UseSqlite(configuration.GetConnectionString("PaymentSagaDb"));
-                });
+                r.AddDbContext<DbContext, PaymentEventDbContext>((provider, options) => options.UseSqlite(configuration.GetConnectionString("PaymentSagaDb")));
 
                 r.UseSqlite();
             });
@@ -339,25 +333,15 @@ public static class ServiceBuilderExtensions
                     h.Password(rabbitOptions.Password);
                 });
 
-                cfg.ReceiveEndpoint("payment-event", e =>
-                {
-                    e.ConfigureSaga<PaymentEventState>(context);
-                });
-
-                cfg.ReceiveEndpoint("payment-request", e =>
-                {
-                    e.ConfigureSaga<PaymentRequestState>(context);
-                });
+                cfg.ReceiveEndpoint("payment-event", e => e.ConfigureSaga<PaymentEventState>(context));
+                cfg.ReceiveEndpoint("payment-request", e => e.ConfigureSaga<PaymentRequestState>(context));
 
                 // SQLite is not ideal for pessimistic locking (unblock this when use Postgres or SQL Server), but we can still use message retry for transient exceptions like deadlocks or connection issues.
-                cfg.UseMessageRetry(r =>
-                {
-                    r.Exponential(
+                cfg.UseMessageRetry(r => r.Exponential(
                         retryLimit: 5,
                         minInterval: TimeSpan.FromSeconds(1),
                         maxInterval: TimeSpan.FromSeconds(30),
-                        intervalDelta: TimeSpan.FromSeconds(5));
-                });
+                        intervalDelta: TimeSpan.FromSeconds(5)));
 
                 cfg.ConfigureEndpoints(context);
             });
@@ -368,12 +352,9 @@ public static class ServiceBuilderExtensions
 
     public static IServiceCollection AddPaymentDbContext(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDbContext<PaymentDbContext>(options =>
-        {
-            options.UseSqlite(
+        services.AddDbContext<PaymentDbContext>(options => options.UseSqlite(
                 configuration.GetConnectionString("PaymentDb"),
-                x => x.MigrationsHistoryTable("__EFMigrationsHistory_Payment"));
-        });
+                x => x.MigrationsHistoryTable("__EFMigrationsHistory_Payment")));
 
         return services;
     }

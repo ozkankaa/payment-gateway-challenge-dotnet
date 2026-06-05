@@ -11,7 +11,6 @@ using Microsoft.AspNetCore.RateLimiting;
 
 using PaymentGateway.Api.Application.Features.Payments.Dtos;
 using PaymentGateway.Api.Application.Features.Payments.GetPayment;
-using PaymentGateway.Api.Application.Features.Payments.ProcessPayment;
 using PaymentGateway.Api.Extensions;
 using PaymentGateway.Api.Infrastructure.Metrics;
 using PaymentGateway.Api.Infrastructure.Services.ETagService;
@@ -67,7 +66,7 @@ public class PaymentsControllerV3(
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status503ServiceUnavailable)]
-    public async Task<ActionResult<PostPaymentResponse>> PostPaymentAsync(
+    public async Task<ActionResult> PostPaymentAsync(
         [FromBody] PostPaymentRequest request,
         CancellationToken cancellationToken)
     {
@@ -100,35 +99,44 @@ public class PaymentsControllerV3(
                         cardToken,
                         lastFourDigits,
                         request.CardNumber,
-                        (int)request.ExpiryMonth!,
-                        (int)request.ExpiryYear!,
+                        request.ExpiryMonth,
+                        request.ExpiryYear,
                         request.Currency,
-                        (long)request.Amount!,
+                        request.Amount,
                         request.Cvv,
                         idempotencyKey,
                         requestHash
                     ),
                     cancellationToken);
 
-            return response.Is(out Response<PaymentSucceededResponse> success)
-                ? (ActionResult<PostPaymentResponse>)Ok(new PostPaymentResponse
+            var success = TryGetResponse<PaymentSucceededResponse>(response);
+
+            if (success?.Message?.Payement is { } payment)
+            {
+                return Ok(new PostPaymentResponse
                 {
-                    Id = success.Message.Payement.Id,
-                    CardNumberLastFour = success.Message.Payement.CardNumberLastFour.ToString("D4"),
-                    Currency = success.Message.Payement.Currency,
-                    Amount = success.Message.Payement.Amount,
-                    ExpiryMonth = success.Message.Payement.ExpiryMonth.ToString("D2"),
-                    ExpiryYear = success.Message.Payement.ExpiryYear.ToString("D4"),
-                    Status = success.Message.Payement.Status
-                })
-                : response.Is(out Response<PaymentFailedResponse> failed)
-                ? (ActionResult<PostPaymentResponse>)BadRequest(new ErrorResponse(
-                    Code: failed.Message.Error?.Code ?? "payment_processing_failed",
-                    Message: failed.Message.Error?.Message ?? "Payment processing failed.",
-                    Errors: failed.Message.Error?.Errors
+                    Id = payment.Id,
+                    CardNumberLastFour = payment.CardNumberLastFour.ToString("D4"),
+                    Currency = payment.Currency,
+                    Amount = payment.Amount,
+                    ExpiryMonth = payment.ExpiryMonth.ToString("D2"),
+                    ExpiryYear = payment.ExpiryYear.ToString("D4"),
+                    Status = payment.Status
+                });
+            }
+
+            var failed = TryGetResponse<PaymentFailedResponse>(response);
+            return failed?.Message?.Error is { } error
+                ? BadRequest(new ErrorResponse(
+                    Code: error.Code,
+                    Message: error.Message,
+                    Errors: error.Errors
                 ))
-                : (ActionResult<PostPaymentResponse>)StatusCode(StatusCodes.Status500InternalServerError,
-                new ErrorResponse("payment_processing_failed", "Payment processing failed with an unknown error."));
+                : (ActionResult)StatusCode(StatusCodes.Status500InternalServerError,
+                new ErrorResponse(
+                        Code: "payment_processing_failed",
+                        Message: "Payment processing failed with an unknown error.",
+                        Errors: null));
         }
         catch (Exception ex)
         {
@@ -140,7 +148,7 @@ public class PaymentsControllerV3(
 
             return StatusCode(
                 StatusCodes.Status503ServiceUnavailable,
-                new ErrorResponse("payment_service_unavailable", "Payment service is currently unavailable. Please try again later."));
+                new ErrorResponse("payment_service_unavailable", "Payment service is currently unavailable. Please try again later.", Errors: null));
         }
     }
 
@@ -189,20 +197,6 @@ public class PaymentsControllerV3(
         return action();
     }
 
-    private void LogPaymentFailure(
-        PaymentOperationResultDto result,
-        string? idempotencyKey,
-        string lastFourDigits)
-    {
-        logger.LogInformation(
-            "Payment processing failed with outcome {Outcome}, error code {ErrorCode}, error message {ErrorMessage}, idempotency key {IdempotencyKey}, card ending {LastFourDigits}.",
-            result.Outcome,
-            result.Error?.Code,
-            result.Error?.Message,
-            idempotencyKey,
-            lastFourDigits);
-    }
-
     private static string CreateRequestHash(PostPaymentRequest request)
     {
         var payload = JsonSerializer.Serialize(new
@@ -219,5 +213,13 @@ public class PaymentsControllerV3(
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
 
         return Convert.ToHexString(bytes);
+    }
+
+    private static Response<T>? TryGetResponse<T>(Response<PaymentSucceededResponse, PaymentFailedResponse> response) where T : class
+    {
+#pragma warning disable CS8600
+        response.Is(out Response<T>? result);
+#pragma warning restore CS8600
+        return result;
     }
 }

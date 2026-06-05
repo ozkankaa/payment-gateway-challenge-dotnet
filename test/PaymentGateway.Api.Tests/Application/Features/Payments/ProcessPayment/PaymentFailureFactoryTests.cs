@@ -71,57 +71,50 @@ public sealed class PaymentFailureFactoryTests
     [Theory]
     [MemberData(nameof(StaticFactoryCases))]
     public void StaticFailures_ShouldReturnExpectedError(
-        Func<ErrorDto> factory,
-        string expectedCode,
-        string expectedMessage)
+    StaticFailureCase failureCase,
+    string expectedCode,
+    string expectedMessage)
     {
-        var result = factory();
+        var result = failureCase switch
+        {
+            StaticFailureCase.PaymentDeclinedByFraudService => PaymentFailureFactory.PaymentDeclinedByFraudService(),
+            StaticFailureCase.FraudServiceUnavailable => PaymentFailureFactory.FraudServiceUnavailable(),
+            StaticFailureCase.AcquiringBankRejected => PaymentFailureFactory.AcquiringBankRejected(),
+            StaticFailureCase.AcquiringBankDeclined => PaymentFailureFactory.AcquiringBankDeclined(),
+            StaticFailureCase.BankUnavailable => PaymentFailureFactory.BankUnavailable(),
+            StaticFailureCase.PaymentPersistenceFailed => PaymentFailureFactory.PaymentPersistenceFailed(),
+            _ => throw new ArgumentOutOfRangeException(nameof(failureCase))
+        };
 
         AssertError(result, expectedCode, expectedMessage);
     }
 
-    public static TheoryData<Func<ErrorDto>, string, string> StaticFactoryCases()
+    public enum StaticFailureCase
     {
-        return new TheoryData<Func<ErrorDto>, string, string>
-        {
-            {
-                PaymentFailureFactory.PaymentDeclinedByFraudService,
-                "payment_declined",
-                "Fraud service rejected the payment request."
-            },
-            {
-                PaymentFailureFactory.FraudServiceUnavailable,
-                "fraud_service_unavailable",
-                "Fraud service is unavailable. Try again later."
-            },
-            {
-                PaymentFailureFactory.AcquiringBankRejected,
-                "payment_rejected",
-                "Acquiring bank rejected the payment request."
-            },
-            {
-                PaymentFailureFactory.AcquiringBankDeclined,
-                "payment_declined",
-                "Acquiring bank declined the payment request."
-            },
-            {
-                PaymentFailureFactory.BankUnavailable,
-                "bank_unavailable",
-                "Acquiring bank is unavailable. Try again later."
-            },
-            {
-                PaymentFailureFactory.PaymentPersistenceFailed,
-                "payment_failed",
-                "Payment could not be stored consistently. Retry with the same Idempotency-Key."
-            }
-        };
+        PaymentDeclinedByFraudService,
+        FraudServiceUnavailable,
+        AcquiringBankRejected,
+        AcquiringBankDeclined,
+        BankUnavailable,
+        PaymentPersistenceFailed
     }
+
+    public static TheoryData<StaticFailureCase, string, string> StaticFactoryCases() => new()
+    {
+        { StaticFailureCase.PaymentDeclinedByFraudService, "payment_declined", "Fraud service rejected the payment request." },
+        { StaticFailureCase.FraudServiceUnavailable, "fraud_service_unavailable", "Fraud service is unavailable. Try again later." },
+        { StaticFailureCase.AcquiringBankRejected, "payment_rejected", "Acquiring bank rejected the payment request." },
+        { StaticFailureCase.AcquiringBankDeclined, "payment_declined", "Acquiring bank declined the payment request." },
+        { StaticFailureCase.BankUnavailable, "bank_unavailable", "Acquiring bank is unavailable. Try again later." },
+        { StaticFailureCase.PaymentPersistenceFailed, "payment_failed", "Payment could not be stored consistently. Retry with the same Idempotency-Key." }
+    };
+
 
     private static void AssertError(
         ErrorDto result,
         string expectedCode,
         string expectedMessage,
-        IDictionary<string, string[]>? expectedErrors = null)
+        Dictionary<string, string[]>? expectedErrors = null)
     {
         Assert.NotNull(result);
         Assert.Equal(expectedCode, result.Code);

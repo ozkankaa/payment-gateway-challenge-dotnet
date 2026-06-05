@@ -5,13 +5,12 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 using PaymentGateway.Api.HealthChecks;
-using PaymentGateway.Api.Options;
 
 namespace PaymentGateway.Api.Extensions;
 
 internal static class HealthCheckExtensions
 {
-    public static IServiceCollection AddCustomHealthChecks(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddCustomHealthChecks(this IServiceCollection services)
     {
         services.AddHealthChecks()
             .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
@@ -55,11 +54,7 @@ internal static class HealthCheckExtensions
             })
         };
 
-        var options = new JsonSerializerOptions
-        {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            WriteIndented = true
-        };
+        JsonSerializerOptions options = Infrastructure.JsonDefaults.Options;
 
         return context.Response.WriteAsync(JsonSerializer.Serialize(response, options));
     }
