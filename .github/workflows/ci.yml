@@ -40,7 +40,7 @@ jobs:
 
       - name: Run tests
         env:
-          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_ENVIRONMENT: Testing
           RabbitMq__HostName: localhost
           RabbitMq__Port: "5672"
           RabbitMq__UserName: guest

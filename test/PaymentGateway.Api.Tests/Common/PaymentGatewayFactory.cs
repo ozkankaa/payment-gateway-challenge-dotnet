@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 using PaymentGateway.Api.Infrastructure.Services.AcquiringBankService;
 using PaymentGateway.Api.Infrastructure.Services.FraudService;
-using PaymentGateway.Api.Tests.Common;
 
 namespace PaymentGateway.Api.Tests.Common;
 
