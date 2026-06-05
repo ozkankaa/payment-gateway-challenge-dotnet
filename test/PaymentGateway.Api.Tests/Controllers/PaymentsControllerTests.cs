@@ -74,10 +74,13 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
 
         // Act
         var response = await _client.SendAsync(postMessage, TestContext.Current.CancellationToken);
-        var error = await response.Content.ReadFromJsonAsync<ErrorResponse>(JsonDefaults.Options, cancellationToken: TestContext.Current.CancellationToken);
 
+        
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var error = await response.Content.ReadFromJsonAsync<ErrorResponse>(JsonDefaults.Options, cancellationToken: TestContext.Current.CancellationToken);
+
         Assert.Equal("payment_declined", error!.Code);
     }
 
@@ -99,11 +102,13 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
         postMessage.Content = JsonContent.Create(postPaymentRequest);
 
         // Act
-        var response = await _client.SendAsync(postMessage, TestContext.Current.CancellationToken);
-        var error = await response.Content.ReadFromJsonAsync<ErrorResponse>(JsonDefaults.Options, cancellationToken: TestContext.Current.CancellationToken);
+        var response = await _client.SendAsync(postMessage, TestContext.Current.CancellationToken);        
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var error = await response.Content.ReadFromJsonAsync<ErrorResponse>(JsonDefaults.Options, cancellationToken: TestContext.Current.CancellationToken);
+
         Assert.Equal("payment_rejected", error!.Code);
         Assert.Contains(nameof(PostPaymentRequest.CardNumber), error.Errors!.Keys);
     }
@@ -126,8 +131,7 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
         postMessage.Content = JsonContent.Create(postPaymentRequest);
 
         // Act
-        var response = await _client.SendAsync(postMessage, TestContext.Current.CancellationToken);
-        _ = await response.Content.ReadFromJsonAsync<ErrorResponse>(JsonDefaults.Options, cancellationToken: TestContext.Current.CancellationToken);
+        var response = await _client.SendAsync(postMessage, TestContext.Current.CancellationToken);        
 
         // Assert
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);

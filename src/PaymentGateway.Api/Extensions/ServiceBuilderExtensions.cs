@@ -49,6 +49,7 @@ public static class ServiceBuilderExtensions
     {
 
         services.AddControllers();
+        services.AddProblemDetails();
 
         services.AddGrpc();
         services.AddGrpcReflection();
