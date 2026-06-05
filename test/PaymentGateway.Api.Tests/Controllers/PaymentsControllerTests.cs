@@ -9,6 +9,7 @@ using PaymentGateway.Api.Tests.Common;
 
 namespace PaymentGateway.Api.Tests.Controllers;
 
+[Collection("Integration tests")]
 public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
 {
     private readonly HttpClient _client;
@@ -17,7 +18,6 @@ public class PaymentsControllerTests : IClassFixture<PaymentGatewayFactory>
     public PaymentsControllerTests(PaymentGatewayFactory factory)
     {
         _client = factory.CreateClient();
-        FakeAcquiringBankClient.Reset();
     }
 
     #region PostPaymentAsync
