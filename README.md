@@ -24,6 +24,7 @@ A simple payment gateway API implemented in .NET 8 (C# 12). This project exposes
 - EDD implementation with using RabbitMQ sending messages to external services
 - Using Sqlite database for storing payments and outbox events via EntityFrameworkCore and UnitOfWork implementation and RowVersioning for concurrency
 - Added CI file for Github Actions
+- Added k6 performance tests for performance testing with Docker
 
 ## Prerequisites
 
@@ -343,109 +344,43 @@ dotnet test
 
 Test projects include validators and handler tests. You can also use test coverage and CI tools as desired to maintain code quality.
 
+### Performance testing
+
+Using GitBash or WSL, you can run the included k6 performance tests with Docker:
+```
+docker run --rm -i \
+  --network=payment-gateway-challenge-dotnet_monitoring \
+  -v $(pwd)/test/performance/k6:/scripts \
+  -e BASE_URL=http://host.docker.internal:5000 \
+  grafana/k6 run \
+  --out influxdb=http://influxdb:8086/k6 \
+  /scripts/scenarios/smoke.js
+  ```
+
+  using PowerShell:
+  ```
+  docker run --rm -i `
+  --network=payment-gateway-challenge-dotnet_monitoring `
+  -v ${PWD}/test/performance/k6:/scripts `
+  -e BASE_URL=http://host.docker.internal:5000 `
+  grafana/k6 run `
+  --out influxdb=http://influxdb:8086/k6 `
+  /scripts/scenarios/smoke.js
+  
+  ```
+
+
 ## Deployment
 
 ### Github Actions
 
-#### Azure
-
-GitHub secret needed `AZURE_WEBAPP_PUBLISH_PROFILE`
-
-Add sensitive values manually in Azure Configuration or Key Vault references:
-```
-ConnectionStrings__PaymentDb
-RabbitMq__HostName
-RabbitMq__UserName
-RabbitMq__Password
-RabbitMq__Port
-RabbitMq__VirtualHost
-AcquiringBank__BaseUrl
-FraudService__BaseUrl
-Service__OpenTelemetry__OtlpEndpoint
-Serilog__WriteTo__1__Args__endpoint
-```
-
-### AWS
-
-GitHub secrets needed for  AWS_GITHUB_ACTIONS_ROLE_ARN
-
-```
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
-```
-
-Store AWS SSM parameters
-
-```
-aws ssm put-parameter \
-  --name "/payment-gateway/prod/payment-db" \
-  --type "SecureString" \
-  --value "your-db-connection-string"
-
-aws ssm put-parameter \
-  --name "/payment-gateway/prod/rabbitmq-host" \
-  --type "SecureString" \
-  --value "your-rabbitmq-host"
-
-aws ssm put-parameter \
-  --name "/payment-gateway/prod/rabbitmq-username" \
-  --type "SecureString" \
-  --value "your-rabbitmq-user"
-
-aws ssm put-parameter \
-  --name "/payment-gateway/prod/rabbitmq-password" \
-  --type "SecureString" \
-  --value "your-rabbitmq-password"
-
-aws ssm put-parameter \
-  --name "/payment-gateway/prod/acquiring-bank-base-url" \
-  --type "SecureString" \
-  --value "https://your-acquiring-bank"
-
-aws ssm put-parameter \
-  --name "/payment-gateway/prod/fraud-service-base-url" \
-  --type "SecureString" \
-  --value "https://your-fraud-service"
-
-aws ssm put-parameter \
-  --name "/payment-gateway/prod/otlp-endpoint" \
-  --type "SecureString" \
-  --value "http://your-otel-collector:4318"
-
-aws ssm put-parameter \
-  --name "/payment-gateway/prod/otlp-logs-endpoint" \
-  --type "SecureString" \
-  --value "http://your-otel-collector:4318/v1/logs"
-```
-
-### K8S
-
-Required GitHub secret:`KUBE_CONFIG`
-
-Store it base64 encoded: `cat ~/.kube/config | base64`
-
-#### Apply order
-
-```bash
-kubectl apply -f k8s/prod/namespace.yaml
-kubectl apply -f k8s/prod/configmap.yaml
-kubectl apply -f k8s/prod/secret.yaml
-kubectl apply -f k8s/prod/service.yaml
-kubectl apply -f k8s/prod/deployment.yaml
-kubectl apply -f k8s/prod/hpa.yaml
-kubectl apply -f k8s/prod/pdb.yaml
-kubectl apply -f k8s/prod/ingress.yaml
-kubectl apply -f k8s/prod/istio-gateway.yaml
-kubectl apply -f k8s/prod/istio-virtualservice.yaml
-```
-
-#### Replace before production
-
-- `api.your-domain.com`
-- `ghcr.io/YOUR_ORG/payment-gateway-api:latest`
-- all values in `secret.yaml`
-- project path in `.github/workflows/k8s-prod.yml` if your API project path differs
-
+A GitHub Actions workflow is included in `.github/workflows/ci.yml` that runs on pushes and pull requests to the main branch. The workflow includes steps for:
+- Checking out the code
+- Setting up .NET 8
+- Restoring dependencies
+- Building the solution
+- Running tests
+- Publishing test results and code coverage
 
 ## Coding standards
 

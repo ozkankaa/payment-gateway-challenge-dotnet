@@ -170,7 +170,7 @@ public static class ServiceBuilderExtensions
     public static IServiceCollection AddCors(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddCors(options => options.AddPolicy("Merchants", policy => policy
-        .WithOrigins(configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? ["https://localhost:3000"])
+        .WithOrigins(configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? ["https://localhost:3000", "http://localhost:5000", "https://localhost:5001"])
         .AllowAnyHeader()
         .AllowAnyMethod()));
         return services;
