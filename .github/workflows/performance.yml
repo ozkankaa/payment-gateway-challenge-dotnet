@@ -1,10 +1,6 @@
 ﻿name: Performance tests
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
     inputs:
       test_type:
@@ -12,7 +8,12 @@ on:
         required: true
         default: 'smoke'
         type: choice
-        options: [smoke, load, stress, spike, soak]
+        options:
+          - smoke
+          - load
+          - stress
+          - spike
+          - soak
 
 jobs:
   performance:
@@ -63,7 +64,7 @@ jobs:
           k6 run \
             --out influxdb=http://localhost:8086/k6 \
             -e BASE_URL=http://localhost:5000 \
-            tests/performance/k6/scenarios/smoke.js
+            test/performance/k6/scenarios/smoke.js
 
       - name: Run selected test (manual trigger)
         if: github.event_name == 'workflow_dispatch'
@@ -71,7 +72,7 @@ jobs:
           k6 run \
             --out influxdb=http://localhost:8086/k6 \
             -e BASE_URL=http://localhost:5000 \
-            tests/performance/k6/scenarios/${{ github.event.inputs.test_type }}.js
+            test/performance/k6/scenarios/${{ github.event.inputs.test_type }}.js
 
       - name: Upload results
         uses: actions/upload-artifact@v4

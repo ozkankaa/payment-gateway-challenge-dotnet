@@ -1,5 +1,3 @@
-// tests/performance/k6/helpers/data.js
-
 // Test card numbers that your bank simulator accepts
 const TEST_CARDS = [
     '2222405343248877',  // Mastercard - Authorized

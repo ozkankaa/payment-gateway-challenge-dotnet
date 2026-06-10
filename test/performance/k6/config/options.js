@@ -1,6 +1,4 @@
-﻿// tests/performance/k6/config/options.js
-
-export const BASE_URL = __ENV.BASE_URL || 'http://localhost:5000';
+﻿export const BASE_URL = __ENV.BASE_URL || 'http://localhost:5000';
 
 export const MERCHANT_ID = __ENV.MERCHANT_ID || '3fa85f64-5717-4562-b3fc-2c963f66afa6';
 

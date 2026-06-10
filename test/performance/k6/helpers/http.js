@@ -1,5 +1,3 @@
-// tests/performance/k6/helpers/http.js
-
 import http from 'k6/http';
 import { BASE_URL } from '../config/options.js';
 

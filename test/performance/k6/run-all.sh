@@ -1,5 +1,4 @@
 #!/bin/bash
-# tests/performance/k6/run-all.sh
 
 set -e  # stop on any error
 
