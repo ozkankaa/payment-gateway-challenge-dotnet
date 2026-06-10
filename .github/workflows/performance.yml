@@ -20,15 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
-    services:
-      influxdb:
-        image: influxdb:1.8
-        env:
-          INFLUXDB_DB: k6
-          INFLUXDB_HTTP_AUTH_ENABLED: "false"
-        ports:
-          - 8086:8086
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
