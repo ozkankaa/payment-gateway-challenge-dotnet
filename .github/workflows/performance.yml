@@ -1,13 +1,11 @@
-# .github/workflows/performance.yml
-
-name: Performance tests
+﻿name: Performance tests
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:          # allows manual trigger
+  workflow_dispatch:
     inputs:
       test_type:
         description: 'Which test to run'
@@ -48,25 +46,18 @@ jobs:
             --project src/PaymentGateway.Api \
             --configuration Release \
             --urls http://localhost:5000 &
-          # Wait for API to be ready
+          echo "Waiting for API to be ready..."
           for i in {1..30}; do
-            curl -sf http://localhost:5000/health && break
-            echo "Waiting for API... ($i)"
+            curl -sf http://localhost:5000/health && echo "API is up!" && break
+            echo "Attempt $i - not ready yet, waiting 2s..."
             sleep 2
           done
 
+      
       - name: Install K6
-        run: |
-          sudo gpg --no-default-keyring \
-            --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
-            --keyserver hkp://keyserver.ubuntu.com:80 \
-            --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] \
-            https://dl.k6.io/deb stable main" \
-            | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update && sudo apt-get install k6
+        uses: grafana/setup-k6-action@v1
 
-      - name: Run smoke test (every push)
+      - name: Run smoke test (on every push)
         if: github.event_name != 'workflow_dispatch'
         run: |
           k6 run \
@@ -82,16 +73,7 @@ jobs:
             -e BASE_URL=http://localhost:5000 \
             tests/performance/k6/scenarios/${{ github.event.inputs.test_type }}.js
 
-      - name: Export results as JSON
-        if: always()
-        run: |
-          mkdir -p test-results
-          k6 run \
-            --out json=test-results/k6-results.json \
-            -e BASE_URL=http://localhost:5000 \
-            tests/performance/k6/scenarios/smoke.js || true
-
-      - name: Upload results artifact
+      - name: Upload results
         uses: actions/upload-artifact@v4
         if: always()
         with:
