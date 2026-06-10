@@ -38,6 +38,10 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Start integration dependencies
+        run: |
+          docker compose -f docker-compose.integration.yml up -d
+
       - name: Build API
         run: dotnet build src/PaymentGateway.Api --configuration Release
 
@@ -47,27 +51,26 @@ jobs:
             --project src/PaymentGateway.Api \
             --configuration Release \
             --urls http://localhost:5000 &
+
           echo "Waiting for API to be ready..."
+
           for i in {1..30}; do
-            curl -sf http://localhost:5000/health && echo "API is up!" && break
+            if curl -sf http://localhost:5000/health; then
+              echo "API is up!"
+              exit 0
+            fi
+
             echo "Attempt $i - not ready yet, waiting 2s..."
             sleep 2
           done
 
-      
+          echo "API did not start in time"
+          exit 1
+
       - name: Install K6
         uses: grafana/setup-k6-action@v1
 
-      - name: Run smoke test (on every push)
-        if: github.event_name != 'workflow_dispatch'
-        run: |
-          k6 run \
-            --out influxdb=http://localhost:8086/k6 \
-            -e BASE_URL=http://localhost:5000 \
-            test/performance/k6/scenarios/smoke.js
-
-      - name: Run selected test (manual trigger)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Run selected performance test
         run: |
           k6 run \
             --out influxdb=http://localhost:8086/k6 \
@@ -81,3 +84,8 @@ jobs:
           name: k6-performance-results
           path: test-results/
           retention-days: 30
+
+      - name: Stop integration dependencies
+        if: always()
+        run: |
+          docker compose -f docker-compose.integration.yml down -v
